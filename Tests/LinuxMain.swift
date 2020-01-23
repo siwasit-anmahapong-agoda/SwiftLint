@@ -1592,6 +1592,24 @@ extension XCTFailMessageRuleTests {
     ]
 }
 
+extension XCTMissingSuperSetUpTearDownRuleTests {
+    static var allTests: [(String, (XCTMissingSuperSetUpTearDownRuleTests) -> () throws -> Void)] = [
+        ("testWithDefaultConfiguration", testWithDefaultConfiguration)
+    ]
+}
+
+extension XCTNullifyStoredPropertiesRuleTests {
+    static var allTests: [(String, (XCTNullifyStoredPropertiesRuleTests) -> () throws -> Void)] = [
+        ("testWithDefaultConfiguration", testWithDefaultConfiguration)
+    ]
+}
+
+extension XCTResetSharedStateRuleTests {
+    static var allTests: [(String, (XCTResetSharedStateRuleTests) -> () throws -> Void)] = [
+        ("testWithDefaultConfiguration", testWithDefaultConfiguration)
+    ]
+}
+
 extension XCTSpecificMatcherRuleTests {
     static var allTests: [(String, (XCTSpecificMatcherRuleTests) -> () throws -> Void)] = [
         ("testRule", testRule),
@@ -1845,6 +1863,9 @@ XCTMain([
     testCase(VoidReturnRuleTests.allTests),
     testCase(WeakDelegateRuleTests.allTests),
     testCase(XCTFailMessageRuleTests.allTests),
+    testCase(XCTMissingSuperSetUpTearDownRuleTests.allTests),
+    testCase(XCTNullifyStoredPropertiesRuleTests.allTests),
+    testCase(XCTResetSharedStateRuleTests.allTests),
     testCase(XCTSpecificMatcherRuleTests.allTests),
     testCase(YamlParserTests.allTests),
     testCase(YamlSwiftLintTests.allTests),
