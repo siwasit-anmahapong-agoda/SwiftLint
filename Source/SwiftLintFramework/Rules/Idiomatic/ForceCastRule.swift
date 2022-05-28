@@ -1,4 +1,5 @@
 import SourceKittenFramework
+import SwiftSyntax
 
 public struct ForceCastRule: ConfigurationProviderRule, AutomaticTestableRule {
     public var configuration = SeverityConfiguration(.error)
@@ -11,16 +12,30 @@ public struct ForceCastRule: ConfigurationProviderRule, AutomaticTestableRule {
         description: "Force casts should be avoided.",
         kind: .idiomatic,
         nonTriggeringExamples: [
-            "NSNumber() as? Int\n"
+            Example("NSNumber() as? Int\n")
         ],
-        triggeringExamples: [ "NSNumber() ↓as! Int\n" ]
+        triggeringExamples: [ Example("NSNumber() ↓as! Int\n") ]
     )
 
     public func validate(file: SwiftLintFile) -> [StyleViolation] {
-        return file.match(pattern: "as!", with: [.keyword]).map {
-            StyleViolation(ruleDescription: type(of: self).description,
+        guard let tree = file.syntaxTree else { return [] }
+
+        let visitor = ForceCastRuleVisitor()
+        visitor.walk(tree)
+        return visitor.positions.map { position in
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severity,
-                           location: Location(file: file, characterOffset: $0.location))
+                           location: Location(file: file, byteOffset: ByteCount(position)))
+        }
+    }
+}
+
+private final class ForceCastRuleVisitor: SyntaxVisitor {
+    var positions: [AbsolutePosition] = []
+
+    override func visitPost(_ node: AsExprSyntax) {
+        if node.questionOrExclamationMark?.tokenKind == .exclamationMark {
+            positions.append(node.asTok.positionAfterSkippingLeadingTrivia)
         }
     }
 }

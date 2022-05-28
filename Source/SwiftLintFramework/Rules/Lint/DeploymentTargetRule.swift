@@ -13,53 +13,36 @@ public struct DeploymentTargetRule: ConfigurationProviderRule {
         description: "Availability checks or attributes shouldn't be using older versions " +
                      "that are satisfied by the deployment target.",
         kind: .lint,
-        minSwiftVersion: .fourDotOne,
-        nonTriggeringExamples: [
-            "@available(iOS 12.0, *)\nclass A {}",
-            "@available(watchOS 4.0, *)\nclass A {}",
-            "@available(swift 3.0.2)\nclass A {}",
-            "class A {}",
-            "if #available(iOS 10.0, *) {}",
-            "if #available(iOS 10, *) {}",
-            "guard #available(iOS 12.0, *) else { return }"
-        ],
-        triggeringExamples: [
-            "↓@available(iOS 6.0, *)\nclass A {}",
-            "↓@available(iOS 7.0, *)\nclass A {}",
-            "↓@available(iOS 6, *)\nclass A {}",
-            "↓@available(iOS 6.0, macOS 10.12, *)\n class A {}",
-            "↓@available(macOS 10.12, iOS 6.0, *)\n class A {}",
-            "↓@available(macOS 10.7, *)\nclass A {}",
-            "↓@available(OSX 10.7, *)\nclass A {}",
-            "↓@available(watchOS 0.9, *)\nclass A {}",
-            "↓@available(tvOS 8, *)\nclass A {}",
-            "if ↓#available(iOS 6.0, *) {}",
-            "if ↓#available(iOS 6, *) {}",
-            "guard ↓#available(iOS 6.0, *) else { return }"
-        ]
+        nonTriggeringExamples: DeploymentTargetRuleExamples.nonTriggeringExamples,
+        triggeringExamples: DeploymentTargetRuleExamples.triggeringExamples
     )
 
     public func validate(file: SwiftLintFile) -> [StyleViolation] {
         var violations = validateAttributes(file: file, dictionary: file.structureDictionary)
-        violations += validateConditions(file: file)
+        violations += validateConditions(file: file, type: .condition)
+        violations += validateConditions(file: file, type: .negativeCondition)
         violations.sort(by: { $0.location < $1.location })
 
         return violations
     }
 
-    private func validateConditions(file: SwiftLintFile) -> [StyleViolation] {
-        let pattern = "#available\\s*\\([^\\(]+\\)"
+    private func validateConditions(file: SwiftLintFile, type: AvailabilityType) -> [StyleViolation] {
+        guard SwiftVersion.current >= type.requiredSwiftVersion else {
+            return []
+        }
+
+        let pattern = "#\(type.keyword)\\s*\\([^\\(]+\\)"
 
         return file.rangesAndTokens(matching: pattern).flatMap { range, tokens -> [StyleViolation] in
             guard let availabilityToken = tokens.first,
                 availabilityToken.kind == .keyword,
-                let tokenRange = file.stringView.byteRangeToNSRange(start: availabilityToken.offset,
-                                                                    length: availabilityToken.length) else {
-                    return []
+                let tokenRange = file.stringView.byteRangeToNSRange(availabilityToken.range)
+            else {
+                return []
             }
 
             let rangeToSearch = NSRange(location: tokenRange.upperBound, length: range.length - tokenRange.length)
-            return validate(range: rangeToSearch, file: file, violationType: "condition",
+            return validate(range: rangeToSearch, file: file, violationType: type,
                             byteOffsetToReport: availabilityToken.offset)
         }
     }
@@ -77,23 +60,25 @@ public struct DeploymentTargetRule: ConfigurationProviderRule {
         let attributes = dictionary.swiftAttributes.filter {
             $0.attribute.flatMap(SwiftDeclarationAttributeKind.init) == .available
         }
-        guard !attributes.isEmpty else {
+        guard attributes.isNotEmpty else {
             return []
         }
 
         let contents = file.stringView
         return attributes.flatMap { dictionary -> [StyleViolation] in
-            guard let offset = dictionary.offset, let length = dictionary.length,
-                let range = contents.byteRangeToNSRange(start: offset, length: length) else {
-                    return []
+            guard let byteRange = dictionary.byteRange,
+                let range = contents.byteRangeToNSRange(byteRange)
+            else {
+                return []
             }
 
-            return validate(range: range, file: file, violationType: "attribute", byteOffsetToReport: offset)
+            return validate(range: range, file: file, violationType: .attribute,
+                            byteOffsetToReport: byteRange.location)
         }.unique
     }
 
-    private func validate(range: NSRange, file: SwiftLintFile, violationType: String,
-                          byteOffsetToReport: Int) -> [StyleViolation] {
+    private func validate(range: NSRange, file: SwiftLintFile, violationType: AvailabilityType,
+                          byteOffsetToReport: ByteCount) -> [StyleViolation] {
         let platformToConfiguredMinVersion = self.platformToConfiguredMinVersion
         let allPlatforms = "(?:" + platformToConfiguredMinVersion.keys.joined(separator: "|") + ")"
         let pattern = "\(allPlatforms) [\\d\\.]+"
@@ -113,10 +98,10 @@ public struct DeploymentTargetRule: ConfigurationProviderRule {
             }
 
             let reason = """
-            Availability \(violationType) is using a version (\(versionString)) that is \
+            Availability \(violationType.displayString) is using a version (\(versionString)) that is \
             satisfied by the deployment target (\(minVersion.stringValue)) for platform \(platform).
             """
-            return StyleViolation(ruleDescription: type(of: self).description,
+            return StyleViolation(ruleDescription: Self.description,
                                   severity: configuration.severityConfiguration.severity,
                                   location: Location(file: file, byteOffset: byteOffsetToReport),
                                   reason: reason)
@@ -131,5 +116,40 @@ public struct DeploymentTargetRule: ConfigurationProviderRule {
             "tvOS": configuration.tvOSDeploymentTarget,
             "watchOS": configuration.watchOSDeploymentTarget
         ]
+    }
+
+    private enum AvailabilityType {
+        case condition
+        case attribute
+        case negativeCondition
+
+        var displayString: String {
+            switch self {
+            case .condition:
+                return "condition"
+            case .attribute:
+                return "attribute"
+            case .negativeCondition:
+                return "negative condition"
+            }
+        }
+
+        var keyword: String {
+            switch self {
+            case .condition, .attribute:
+                return "available"
+            case .negativeCondition:
+                return "unavailable"
+            }
+        }
+
+        var requiredSwiftVersion: SwiftVersion {
+            switch self {
+            case .condition, .attribute:
+                return .five
+            case .negativeCondition:
+                return .fiveDotSix
+            }
+        }
     }
 }

@@ -12,38 +12,38 @@ public struct VoidReturnRule: ConfigurationProviderRule, SubstitutionCorrectable
         description: "Prefer `-> Void` over `-> ()`.",
         kind: .style,
         nonTriggeringExamples: [
-            "let abc: () -> Void = {}\n",
-            "let abc: () -> (VoidVoid) = {}\n",
-            "func foo(completion: () -> Void)\n",
-            "let foo: (ConfigurationTests) -> () throws -> Void)\n",
-            "let foo: (ConfigurationTests) ->   () throws -> Void)\n",
-            "let foo: (ConfigurationTests) ->() throws -> Void)\n",
-            "let foo: (ConfigurationTests) -> () -> Void)\n"
+            Example("let abc: () -> Void = {}\n"),
+            Example("let abc: () -> (VoidVoid) = {}\n"),
+            Example("func foo(completion: () -> Void)\n"),
+            Example("let foo: (ConfigurationTests) -> () throws -> Void\n"),
+            Example("let foo: (ConfigurationTests) ->   () throws -> Void\n"),
+            Example("let foo: (ConfigurationTests) ->() throws -> Void\n"),
+            Example("let foo: (ConfigurationTests) -> () -> Void\n")
         ],
         triggeringExamples: [
-            "let abc: () -> ↓() = {}\n",
-            "let abc: () -> ↓(Void) = {}\n",
-            "let abc: () -> ↓(   Void ) = {}\n",
-            "func foo(completion: () -> ↓())\n",
-            "func foo(completion: () -> ↓(   ))\n",
-            "func foo(completion: () -> ↓(Void))\n",
-            "let foo: (ConfigurationTests) -> () throws -> ↓())\n"
+            Example("let abc: () -> ↓() = {}\n"),
+            Example("let abc: () -> ↓(Void) = {}\n"),
+            Example("let abc: () -> ↓(   Void ) = {}\n"),
+            Example("func foo(completion: () -> ↓())\n"),
+            Example("func foo(completion: () -> ↓(   ))\n"),
+            Example("func foo(completion: () -> ↓(Void))\n"),
+            Example("let foo: (ConfigurationTests) -> () throws -> ↓()\n")
         ],
         corrections: [
-            "let abc: () -> ↓() = {}\n": "let abc: () -> Void = {}\n",
-            "let abc: () -> ↓(Void) = {}\n": "let abc: () -> Void = {}\n",
-            "let abc: () -> ↓(   Void ) = {}\n": "let abc: () -> Void = {}\n",
-            "func foo(completion: () -> ↓())\n": "func foo(completion: () -> Void)\n",
-            "func foo(completion: () -> ↓(   ))\n": "func foo(completion: () -> Void)\n",
-            "func foo(completion: () -> ↓(Void))\n": "func foo(completion: () -> Void)\n",
-            "let foo: (ConfigurationTests) -> () throws -> ↓())\n":
-                "let foo: (ConfigurationTests) -> () throws -> Void)\n"
+            Example("let abc: () -> ↓() = {}\n"): Example("let abc: () -> Void = {}\n"),
+            Example("let abc: () -> ↓(Void) = {}\n"): Example("let abc: () -> Void = {}\n"),
+            Example("let abc: () -> ↓(   Void ) = {}\n"): Example("let abc: () -> Void = {}\n"),
+            Example("func foo(completion: () -> ↓())\n"): Example("func foo(completion: () -> Void)\n"),
+            Example("func foo(completion: () -> ↓(   ))\n"): Example("func foo(completion: () -> Void)\n"),
+            Example("func foo(completion: () -> ↓(Void))\n"): Example("func foo(completion: () -> Void)\n"),
+            Example("let foo: (ConfigurationTests) -> () throws -> ↓()\n"):
+                Example("let foo: (ConfigurationTests) -> () throws -> Void\n")
         ]
     )
 
     public func validate(file: SwiftLintFile) -> [StyleViolation] {
         return violationRanges(in: file).map {
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severity,
                            location: Location(file: file, characterOffset: $0.location))
         }

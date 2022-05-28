@@ -1,4 +1,3 @@
-import Foundation
 import SourceKittenFramework
 
 public struct ForWhereRule: ASTRule, ConfigurationProviderRule, AutomaticTestableRule {
@@ -12,76 +11,76 @@ public struct ForWhereRule: ASTRule, ConfigurationProviderRule, AutomaticTestabl
         description: "`where` clauses are preferred over a single `if` inside a `for`.",
         kind: .idiomatic,
         nonTriggeringExamples: [
-            """
+            Example("""
             for user in users where user.id == 1 { }
-            """,
+            """),
             // if let
-            """
+            Example("""
             for user in users {
               if let id = user.id { }
             }
-            """,
+            """),
             // if var
-            """
+            Example("""
             for user in users {
               if var id = user.id { }
             }
-            """,
+            """),
             // if with else
-            """
+            Example("""
             for user in users {
               if user.id == 1 { } else { }
             }
-            """,
+            """),
             // if with else if
-            """
+            Example("""
             for user in users {
               if user.id == 1 {
               } else if user.id == 2 { }
             }
-            """,
+            """),
             // if is not the only expression inside for
-            """
+            Example("""
             for user in users {
               if user.id == 1 { }
               print(user)
             }
-            """,
+            """),
             // if a variable is used
-            """
+            Example("""
             for user in users {
               let id = user.id
               if id == 1 { }
             }
-            """,
+            """),
             // if something is after if
-            """
+            Example("""
             for user in users {
               if user.id == 1 { }
               return true
             }
-            """,
+            """),
             // condition with multiple clauses
-            """
+            Example("""
             for user in users {
               if user.id == 1 && user.age > 18 { }
             }
-            """,
+            """),
             // if case
-            """
+            Example("""
             for (index, value) in array.enumerated() {
               if case .valueB(_) = value {
                 return index
               }
             }
-            """
+            """)
         ],
         triggeringExamples: [
-            """
+            Example("""
             for user in users {
               ↓if user.id == 1 { return true }
             }
-            """
+            """)
         ]
     )
 
@@ -102,7 +101,7 @@ public struct ForWhereRule: ASTRule, ConfigurationProviderRule, AutomaticTestabl
         }
 
         return [
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severity,
                            location: Location(file: file, byteOffset: offset))
         ]
@@ -133,14 +132,14 @@ public struct ForWhereRule: ASTRule, ConfigurationProviderRule, AutomaticTestabl
                 return false
         }
 
-        let beforeIfRange = NSRange(location: offset, length: ifOffset - offset)
+        let beforeIfRange = ByteRange(location: offset, length: ifOffset - offset)
         let ifFinalPosition = ifOffset + ifLength
-        let afterIfRange = NSRange(location: ifFinalPosition, length: offset + length - ifFinalPosition)
+        let afterIfRange = ByteRange(location: ifFinalPosition, length: offset + length - ifFinalPosition)
         let allKinds = file.syntaxMap.kinds(inByteRange: beforeIfRange) +
             file.syntaxMap.kinds(inByteRange: afterIfRange)
 
         let doesntContainComments = !allKinds.contains { kind in
-            !ForWhereRule.commentKinds.contains(kind)
+            !Self.commentKinds.contains(kind)
         }
 
         return doesntContainComments
@@ -148,21 +147,19 @@ public struct ForWhereRule: ASTRule, ConfigurationProviderRule, AutomaticTestabl
 
     private func isComplexCondition(dictionary: SourceKittenDictionary, file: SwiftLintFile) -> Bool {
         let kind = "source.lang.swift.structure.elem.condition_expr"
-        let contents = file.stringView
         return dictionary.elements.contains { element in
             guard element.kind == kind,
-                let offset = element.offset,
-                let length = element.length,
-                let range = contents.byteRangeToNSRange(start: offset, length: length) else {
-                    return false
+                let range = element.byteRange.flatMap(file.stringView.byteRangeToNSRange)
+            else {
+                return false
             }
 
-            let containsKeyword = !file.match(pattern: "\\blet|var|case\\b", with: [.keyword], range: range).isEmpty
+            let containsKeyword = file.match(pattern: "\\blet|var|case\\b", with: [.keyword], range: range).isNotEmpty
             if containsKeyword {
                 return true
             }
 
-            return !file.match(pattern: "\\|\\||&&", with: [], range: range).isEmpty
+            return file.match(pattern: "\\|\\||&&", with: [], range: range).isNotEmpty
         }
     }
 }

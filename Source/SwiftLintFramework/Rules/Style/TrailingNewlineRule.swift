@@ -29,16 +29,16 @@ public struct TrailingNewlineRule: CorrectableRule, ConfigurationProviderRule, S
         description: "Files should have a single trailing newline.",
         kind: .style,
         nonTriggeringExamples: [
-            "let a = 0\n"
+            Example("let a = 0\n")
         ],
         triggeringExamples: [
-            "let a = 0",
-            "let a = 0\n\n"
+            Example("let a = 0"),
+            Example("let a = 0\n\n")
         ],
         corrections: [
-            "let a = 0": "let a = 0\n",
-            "let b = 0\n\n": "let b = 0\n",
-            "let c = 0\n\n\n\n": "let c = 0\n"
+            Example("let a = 0"): Example("let a = 0\n"),
+            Example("let b = 0\n\n"): Example("let b = 0\n"),
+            Example("let c = 0\n\n\n\n"): Example("let c = 0\n")
         ]
     )
 
@@ -46,7 +46,7 @@ public struct TrailingNewlineRule: CorrectableRule, ConfigurationProviderRule, S
         if file.contents.trailingNewlineCount() == 1 {
             return []
         }
-        return [StyleViolation(ruleDescription: type(of: self).description,
+        return [StyleViolation(ruleDescription: Self.description,
                                severity: configuration.severity,
                                location: Location(file: file.path, line: max(file.lines.count, 1)))]
     }
@@ -68,6 +68,6 @@ public struct TrailingNewlineRule: CorrectableRule, ConfigurationProviderRule, S
             file.write(file.contents[..<index])
         }
         let location = Location(file: file.path, line: max(file.lines.count, 1))
-        return [Correction(ruleDescription: type(of: self).description, location: location)]
+        return [Correction(ruleDescription: Self.description, location: location)]
     }
 }

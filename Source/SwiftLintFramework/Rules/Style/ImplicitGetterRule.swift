@@ -11,185 +11,14 @@ public struct ImplicitGetterRule: ConfigurationProviderRule, AutomaticTestableRu
         name: "Implicit Getter",
         description: "Computed read-only properties and subscripts should avoid using the get keyword.",
         kind: .style,
-        nonTriggeringExamples: ImplicitGetterRule.nonTriggeringExamples,
-        triggeringExamples: ImplicitGetterRule.triggeringExamples
+        nonTriggeringExamples: ImplicitGetterRuleExamples.nonTriggeringExamples,
+        triggeringExamples: ImplicitGetterRuleExamples.triggeringExamples
     )
 
-    private static var nonTriggeringExamples: [String] {
-        let commonExamples = [
-            """
-            class Foo {
-                var foo: Int {
-                    get { return 3 }
-                    set { _abc = newValue }
-                }
-            }
-            """,
-            """
-            class Foo {
-                var foo: Int {
-                    return 20
-                }
-            }
-            """,
-            """
-            class Foo {
-                static var foo: Int {
-                    return 20
-                }
-            }
-            """,
-            """
-            class Foo {
-                static var foo: Int {
-                    get { return 3 }
-                    set { _abc = newValue }
-                }
-            }
-            """,
-            "class Foo {\n    var foo: Int\n}",
-            """
-            class Foo {
-                var foo: Int {
-                    return getValueFromDisk()
-                }
-            }
-            """,
-            """
-            class Foo {
-                var foo: String {
-                    return "get"
-                }
-            }
-            """,
-            "protocol Foo {\n    var foo: Int { get }\n",
-            "protocol Foo {\n    var foo: Int { get set }\n",
-            """
-            class Foo {
-                var foo: Int {
-                    struct Bar {
-                        var bar: Int {
-                            get { return 1 }
-                            set { _ = newValue }
-                        }
-                    }
-
-                    return Bar().bar
-                }
-            }
-            """,
-            """
-            var _objCTaggedPointerBits: UInt {
-                @inline(__always) get { return 0 }
-            }
-            """,
-            """
-            var next: Int? {
-                mutating get {
-                    defer { self.count += 1 }
-                    return self.count
-                }
-            }
-            """
-        ]
-
-        guard SwiftVersion.current >= .fourDotOne else {
-            return commonExamples
-        }
-
-        return commonExamples + [
-            """
-            class Foo {
-                subscript(i: Int) -> Int {
-                    return 20
-                }
-            }
-            """,
-            """
-            class Foo {
-                subscript(i: Int) -> Int {
-                    get { return 3 }
-                    set { _abc = newValue }
-                }
-            }
-            """,
-            "protocol Foo {\n    subscript(i: Int) -> Int { get }\n}",
-            "protocol Foo {\n    subscript(i: Int) -> Int { get set }\n}"
-        ]
-    }
-
-    private static var triggeringExamples: [String] {
-        let commonExamples = [
-            """
-            class Foo {
-                var foo: Int {
-                    ↓get {
-                        return 20
-                    }
-                }
-            }
-            """,
-            """
-            class Foo {
-                var foo: Int {
-                    ↓get{ return 20 }
-                }
-            }
-            """,
-            """
-            class Foo {
-                static var foo: Int {
-                    ↓get {
-                        return 20
-                    }
-                }
-            }
-            """,
-            "var foo: Int {\n    ↓get { return 20 }\n}",
-            """
-            class Foo {
-                @objc func bar() {}
-                var foo: Int {
-                    ↓get {
-                        return 20
-                    }
-                }
-            }
-            """
-        ]
-
-        guard SwiftVersion.current >= .fourDotOne else {
-            return commonExamples
-        }
-
-        return commonExamples + [
-            """
-            class Foo {
-                subscript(i: Int) -> Int {
-                    ↓get {
-                        return 20
-                    }
-                }
-            }
-            """
-        ]
-    }
-
     public func validate(file: SwiftLintFile) -> [StyleViolation] {
-        let pattern = "\\{[^\\{]*?\\s+get\\b"
-        let attributesKinds: Set<SyntaxKind> = [.attributeBuiltin, .attributeID]
-        let getTokens: [SwiftLintSyntaxToken] = file.rangesAndTokens(matching: pattern).compactMap { _, tokens in
-            let kinds = tokens.kinds
-            guard let token = tokens.last,
-                token.kind == .keyword,
-                attributesKinds.isDisjoint(with: kinds) else {
-                    return nil
-            }
+        let getTokens = findGetTokens(file: file)
 
-            return token
-        }
-
-        let violatingLocations = getTokens.compactMap { token -> (Int, SwiftDeclarationKind?)? in
+        let violatingLocations = getTokens.compactMap { token -> (ByteCount, SwiftDeclarationKind?)? in
             // the last element is the deepest structure
             guard let dict = declarations(forByteOffset: token.offset,
                                           structureDictionary: file.structureDictionary).last else {
@@ -197,8 +26,45 @@ public struct ImplicitGetterRule: ConfigurationProviderRule, AutomaticTestableRu
             }
 
             // If there's a setter, `get` is allowed
-            guard dict.setterAccessibility == nil else {
-                return nil
+            if SwiftVersion.current < .fiveDotTwo || dict.accessibility != nil {
+                guard dict.setterAccessibility == nil else {
+                    return nil
+                }
+            } else {
+                guard let range = dict.byteRange.flatMap(file.stringView.byteRangeToNSRange) else {
+                    return nil
+                }
+
+                let setTokens = findSetTokens(file: file, range: range)
+                let hasSetToken = setTokens.contains { token in
+                    // the last element is the deepest structure
+                    guard let setDict = declarations(forByteOffset: token.offset,
+                                                     structureDictionary: file.structureDictionary).last else {
+                        return false
+                    }
+
+                    return setDict.offset == dict.offset
+                }
+
+                guard !hasSetToken else {
+                    return nil
+                }
+            }
+
+            // If there's another keyword after `get`, it's allowed (e.g. `get async`)
+            if SwiftVersion.current >= .fiveDotFive {
+                guard let byteRange = dict.byteRange else {
+                    return nil
+                }
+
+                let nextToken = file.syntaxMap.tokens(inByteRange: byteRange)
+                    .first { $0.offset > token.offset }
+
+                let allowedKeywords: Set = ["throws", "async"]
+                if let nextToken = nextToken,
+                   allowedKeywords.contains(file.contents(for: nextToken) ?? "") {
+                    return nil
+                }
             }
 
             let kind = dict.declarationKind
@@ -211,16 +77,44 @@ public struct ImplicitGetterRule: ConfigurationProviderRule, AutomaticTestableRu
                 return "Computed read-only \(kindString) should avoid using the get keyword."
             }
 
-            return StyleViolation(ruleDescription: type(of: self).description,
+            return StyleViolation(ruleDescription: Self.description,
                                   severity: configuration.severity,
                                   location: Location(file: file, byteOffset: offset),
                                   reason: reason)
         }
     }
+
+    private func findGetTokens(file: SwiftLintFile) -> [SwiftLintSyntaxToken] {
+        let pattern = "\\{[^\\{]*?\\s+get\\b"
+        let attributesKinds: Set<SyntaxKind> = [.attributeBuiltin, .attributeID]
+        return file.rangesAndTokens(matching: pattern).compactMap { _, tokens in
+            let kinds = tokens.kinds
+            guard let token = tokens.last,
+                token.kind == .keyword,
+                attributesKinds.isDisjoint(with: kinds) else {
+                    return nil
+            }
+
+            return token
+        }
+    }
+
+    private func findSetTokens(file: SwiftLintFile, range: NSRange?) -> [SwiftLintSyntaxToken] {
+        let pattern = "\\bset\\b"
+        return file.rangesAndTokens(matching: pattern).compactMap { _, tokens in
+            guard tokens.count == 1,
+                let token = tokens.last,
+                token.kind == .keyword else {
+                    return nil
+            }
+
+            return token
+        }
+    }
 }
 
 private extension ImplicitGetterRule {
-    func declarations(forByteOffset byteOffset: Int,
+    func declarations(forByteOffset byteOffset: ByteCount,
                       structureDictionary: SourceKittenDictionary) -> [SourceKittenDictionary] {
         var results = [SourceKittenDictionary]()
         let allowedKinds = SwiftDeclarationKind.variableKinds.subtracting([.varParameter])
@@ -230,11 +124,10 @@ private extension ImplicitGetterRule {
             // Only accepts declarations which contains a body and contains the
             // searched byteOffset
             guard let kind = dictionary.declarationKind,
-                let bodyOffset = dictionary.bodyOffset,
-                let bodyLength = dictionary.bodyLength,
-                case let byteRange = NSRange(location: bodyOffset, length: bodyLength),
-                NSLocationInRange(byteOffset, byteRange) else {
-                    return
+                let byteRange = dictionary.byteRange,
+                byteRange.contains(byteOffset)
+            else {
+                return
             }
 
             if parentKind != .protocol && allowedKinds.contains(kind) {

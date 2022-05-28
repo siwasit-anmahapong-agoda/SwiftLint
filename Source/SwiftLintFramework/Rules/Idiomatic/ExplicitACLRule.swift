@@ -14,46 +14,81 @@ public struct ExplicitACLRule: OptInRule, ConfigurationProviderRule, AutomaticTe
         description: "All declarations should specify Access Control Level keywords explicitly.",
         kind: .idiomatic,
         nonTriggeringExamples: [
-            "internal enum A {}\n",
-            "public final class B {}\n",
-            "private struct C {}\n",
-            "internal enum A {\n internal enum B {}\n}",
-            "internal final class Foo {}",
-            """
+            Example("internal enum A {}\n"),
+            Example("public final class B {}\n"),
+            Example("private struct C {}\n"),
+            Example("internal enum A {\n internal enum B {}\n}"),
+            Example("internal final class Foo {}"),
+            Example("""
             internal
             class Foo {
               private let bar = 5
             }
-            """,
-            "internal func a() { let a =  }\n",
-            "private func a() { func innerFunction() { } }",
-            "private enum Foo { enum Bar { } }",
-            "private struct C { let d = 5 }",
-            """
+            """),
+            Example("internal func a() { let a =  }\n"),
+            Example("private func a() { func innerFunction() { } }"),
+            Example("private enum Foo { enum Bar { } }"),
+            Example("private struct C { let d = 5 }"),
+            Example("""
             internal protocol A {
               func b()
             }
-            """,
-            """
+            """),
+            Example("""
             internal protocol A {
               var b: Int
             }
-            """,
-            "internal class A { deinit {} }",
-            "extension A: Equatable {}",
-            "extension A {}"
+            """),
+            Example("internal class A { deinit {} }"),
+            Example("extension A: Equatable {}"),
+            Example("extension A {}"),
+            Example("""
+            extension Foo {
+                internal func bar() {}
+            }
+            """),
+            Example("""
+            internal enum Foo {
+                case bar
+            }
+            """),
+            Example("""
+            extension Foo {
+                public var isValid: Bool {
+                    let result = true
+                    return result
+                }
+            }
+            """),
+            Example("""
+            extension Foo {
+                private var isValid: Bool {
+                    get {
+                        return true
+                    }
+                    set(newValue) {
+                        print(newValue)
+                    }
+                }
+            }
+            """)
         ],
         triggeringExamples: [
-            "enum A {}\n",
-            "final class B {}\n",
-            "internal struct C { let d = 5 }\n",
-            "public struct C { let d = 5 }\n",
-            "func a() {}\n",
-            "internal let a = 0\nfunc b() {}\n"
+            Example("↓enum A {}\n"),
+            Example("final ↓class B {}\n"),
+            Example("internal struct C { ↓let d = 5 }\n"),
+            Example("public struct C { ↓let d = 5 }\n"),
+            Example("func a() {}\n"),
+            Example("internal let a = 0\n↓func b() {}\n"),
+            Example("""
+            extension Foo {
+                ↓func bar() {}
+            }
+            """)
         ]
     )
 
-    private func findAllExplicitInternalTokens(in file: SwiftLintFile) -> [NSRange] {
+    private func findAllExplicitInternalTokens(in file: SwiftLintFile) -> [ByteRange] {
         let contents = file.stringView
         return file.match(pattern: "internal", with: [.attributeBuiltin]).compactMap {
             contents.NSRangeToByteRange(start: $0.location, length: $0.length)
@@ -61,17 +96,14 @@ public struct ExplicitACLRule: OptInRule, ConfigurationProviderRule, AutomaticTe
     }
 
     private func offsetOfElements(from elements: [SourceKittenElement], in file: SwiftLintFile,
-                                  thatAreNotInRanges ranges: [NSRange]) -> [Int] {
-        let extensionKinds: Set<SwiftDeclarationKind> = [.extension, .extensionClass, .extensionEnum,
-                                                         .extensionProtocol, .extensionStruct]
-
+                                  thatAreNotInRanges ranges: [ByteRange]) -> [ByteCount] {
         return elements.compactMap { element in
             guard let typeOffset = element.offset else {
                 return nil
             }
 
             guard let kind = element.declarationKind,
-                !extensionKinds.contains(kind) else {
+                !SwiftDeclarationKind.extensionKinds.contains(kind) else {
                     return nil
             }
 
@@ -83,7 +115,7 @@ public struct ExplicitACLRule: OptInRule, ConfigurationProviderRule, AutomaticTe
             // the "internal" token correspond to the type if there're only
             // attributeBuiltin (`final` for example) tokens between them
             let length = typeOffset - previousInternalByteRange.location
-            let range = NSRange(location: previousInternalByteRange.location, length: length)
+            let range = ByteRange(location: previousInternalByteRange.location, length: length)
             let internalDoesntBelongToType = Set(file.syntaxMap.kinds(inByteRange: range)) != [.attributeBuiltin]
 
             return internalDoesntBelongToType ? typeOffset : nil
@@ -91,9 +123,9 @@ public struct ExplicitACLRule: OptInRule, ConfigurationProviderRule, AutomaticTe
     }
 
     public func validate(file: SwiftLintFile) -> [StyleViolation] {
-        let implicitAndExplicitInternalElements = internalTypeElements(in: file.structureDictionary )
+        let implicitAndExplicitInternalElements = internalTypeElements(in: file.structureDictionary)
 
-        guard !implicitAndExplicitInternalElements.isEmpty else {
+        guard implicitAndExplicitInternalElements.isNotEmpty else {
             return []
         }
 
@@ -103,20 +135,21 @@ public struct ExplicitACLRule: OptInRule, ConfigurationProviderRule, AutomaticTe
                                           thatAreNotInRanges: explicitInternalRanges)
 
         return violations.map {
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severity,
                            location: Location(file: file, byteOffset: $0))
         }
     }
 
-    private func lastInternalByteRange(before typeOffset: Int, in ranges: [NSRange]) -> NSRange? {
+    private func lastInternalByteRange(before typeOffset: ByteCount, in ranges: [ByteRange]) -> ByteRange? {
         let firstPartition = ranges.prefix(while: { typeOffset > $0.location })
         return firstPartition.last
     }
 
-    private func internalTypeElements(in element: SourceKittenElement) -> [SourceKittenElement] {
-        return element.substructure.flatMap { element -> [SourceKittenElement] in
-            guard let elementKind = element.declarationKind else {
+    private func internalTypeElements(in parent: SourceKittenElement) -> [SourceKittenElement] {
+        return parent.substructure.flatMap { element -> [SourceKittenElement] in
+            guard let elementKind = element.declarationKind,
+                  elementKind != .varLocal, elementKind != .varParameter else {
                 return []
             }
 
@@ -129,7 +162,12 @@ public struct ExplicitACLRule: OptInRule, ConfigurationProviderRule, AutomaticTe
             let internalTypeElementsInSubstructure = elementKind.childsAreExemptFromACL || isPrivate ? [] :
                 internalTypeElements(in: element)
 
-            if element.accessibility == .internal {
+            var isInExtension = false
+            if let kind = parent.declarationKind {
+                isInExtension = SwiftDeclarationKind.extensionKinds.contains(kind)
+            }
+
+            if element.accessibility == .internal || (element.accessibility == nil && isInExtension) {
                 return internalTypeElementsInSubstructure + [element]
             }
 

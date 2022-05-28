@@ -4,7 +4,7 @@ import SourceKittenFramework
 public extension SyntaxKind {
     /// Returns if the syntax kind is comment-like.
     var isCommentLike: Bool {
-        return SyntaxKind.commentKinds.contains(self)
+        return Self.commentKinds.contains(self)
     }
 }
 
@@ -19,23 +19,23 @@ public struct TodoRule: ConfigurationProviderRule {
         description: "TODOs and FIXMEs should be resolved.",
         kind: .lint,
         nonTriggeringExamples: [
-            "// notaTODO:\n",
-            "// notaFIXME:\n"
+            Example("// notaTODO:\n"),
+            Example("// notaFIXME:\n")
         ],
         triggeringExamples: [
-            "// ↓TODO:\n",
-            "// ↓FIXME:\n",
-            "// ↓TODO(note)\n",
-            "// ↓FIXME(note)\n",
-            "/* ↓FIXME: */\n",
-            "/* ↓TODO: */\n",
-            "/** ↓FIXME: */\n",
-            "/** ↓TODO: */\n"
+            Example("// ↓TODO:\n"),
+            Example("// ↓FIXME:\n"),
+            Example("// ↓TODO(note)\n"),
+            Example("// ↓FIXME(note)\n"),
+            Example("/* ↓FIXME: */\n"),
+            Example("/* ↓TODO: */\n"),
+            Example("/** ↓FIXME: */\n"),
+            Example("/** ↓TODO: */\n")
         ]
     )
 
     private func customMessage(file: SwiftLintFile, range: NSRange) -> String {
-        var reason = type(of: self).description.description
+        var reason = Self.description.description
         let offset = NSMaxRange(range)
 
         guard let (lineNumber, _) = file.stringView.lineAndCharacter(forCharacterOffset: offset) else {
@@ -78,7 +78,7 @@ public struct TodoRule: ConfigurationProviderRule {
             }
             let reason = customMessage(file: file, range: range)
 
-            return StyleViolation(ruleDescription: type(of: self).description,
+            return StyleViolation(ruleDescription: Self.description,
                                   severity: configuration.severity,
                                   location: Location(file: file, characterOffset: range.location),
                                   reason: reason)

@@ -25,7 +25,6 @@ public struct ModifierOrderRule: ASTRule, OptInRule, ConfigurationProviderRule, 
         name: "Modifier Order",
         description: "Modifier order should be consistent.",
         kind: .style,
-        minSwiftVersion: .fourDotOne ,
         nonTriggeringExamples: ModifierOrderRuleExamples.nonTriggeringExamples,
         triggeringExamples: ModifierOrderRuleExamples.triggeringExamples
     )
@@ -45,7 +44,7 @@ public struct ModifierOrderRule: ASTRule, OptInRule, ConfigurationProviderRule, 
             let reason = "\(preferredModifier.keyword) modifier should be before \(declaredModifier.keyword)."
             return [
                 StyleViolation(
-                    ruleDescription: type(of: self).description,
+                    ruleDescription: Self.description,
                     severity: configuration.severityConfiguration.severity,
                     location: Location(file: file, byteOffset: offset),
                     reason: reason
@@ -71,13 +70,12 @@ public struct ModifierOrderRule: ASTRule, OptInRule, ConfigurationProviderRule, 
             .compactMap { preferred, declared -> (NSRange, NSRange)? in
                 guard
                     let preferredRange = originalContents.byteRangeToNSRange(
-                        start: preferred.offset,
-                        length: preferred.length
+                        preferred.range
                     ).flatMap({ file.ruleEnabled(violatingRange: $0, for: self) }),
                     let declaredRange = originalContents.byteRangeToNSRange(
-                        start: declared.offset,
-                        length: declared.length
-                    ).flatMap({ file.ruleEnabled(violatingRange: $0, for: self) }) else {
+                        declared.range
+                    ).flatMap({ file.ruleEnabled(violatingRange: $0, for: self) })
+                else {
                     return nil
                 }
                 return (preferredRange, declaredRange)
@@ -101,7 +99,7 @@ public struct ModifierOrderRule: ASTRule, OptInRule, ConfigurationProviderRule, 
 
             corrections = [
                 Correction(
-                    ruleDescription: type(of: self).description,
+                    ruleDescription: Self.description,
                     location: Location(
                         file: file,
                         byteOffset: offset
@@ -174,7 +172,7 @@ private extension SourceKittenDictionary {
                         keyword: keyword,
                         group: .typeMethods,
                         offset: offset,
-                        length: keyword.count
+                        length: ByteCount(keyword.lengthOfBytes(using: .utf8))
                     )
                 }
                 return nil
@@ -184,11 +182,12 @@ private extension SourceKittenDictionary {
     private func kindsAndOffsets(in declarationKinds: [SwiftDeclarationKind]) -> SourceKittenDictionary? {
         guard let offset = offset,
             let declarationKind = declarationKind,
-            declarationKinds.contains(declarationKind) else {
-                return nil
+            declarationKinds.contains(declarationKind)
+        else {
+            return nil
         }
 
-        return SourceKittenDictionary(["key.kind": declarationKind.rawValue, "key.offset": Int64(offset)])
+        return SourceKittenDictionary(["key.kind": declarationKind.rawValue, "key.offset": Int64(offset.value)])
     }
 }
 
@@ -201,6 +200,7 @@ private extension String {
 private struct ModifierDescription: Equatable {
     let keyword: String
     let group: SwiftDeclarationAttributeKind.ModifierGroup
-    let offset: Int
-    let length: Int
+    let offset: ByteCount
+    let length: ByteCount
+    var range: ByteRange { return ByteRange(location: offset, length: length) }
 }

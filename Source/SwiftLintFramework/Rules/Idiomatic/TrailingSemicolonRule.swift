@@ -11,26 +11,23 @@ public struct TrailingSemicolonRule: SubstitutionCorrectableRule, ConfigurationP
         name: "Trailing Semicolon",
         description: "Lines should not have trailing semicolons.",
         kind: .idiomatic,
-        nonTriggeringExamples: [ "let a = 0\n" ],
+        nonTriggeringExamples: [
+            Example("let a = 0\n"),
+            Example("let a = 0; let b = 0")
+        ],
         triggeringExamples: [
-            "let a = 0↓;\n",
-            "let a = 0↓;\nlet b = 1\n",
-            "let a = 0↓;;\n",
-            "let a = 0↓;    ;;\n",
-            "let a = 0↓; ; ;\n"
+            Example("let a = 0↓;\n"),
+            Example("let a = 0↓;\nlet b = 1\n")
         ],
         corrections: [
-            "let a = 0↓;\n": "let a = 0\n",
-            "let a = 0↓;\nlet b = 1\n": "let a = 0\nlet b = 1\n",
-            "let a = 0↓;;\n": "let a = 0\n",
-            "let a = 0↓;    ;;\n": "let a = 0\n",
-            "let a = 0↓; ; ;\n": "let a = 0\n"
+            Example("let a = 0↓;\n"): Example("let a = 0\n"),
+            Example("let a = 0↓;\nlet b = 1\n"): Example("let a = 0\nlet b = 1\n")
         ]
     )
 
     public func validate(file: SwiftLintFile) -> [StyleViolation] {
         return violationRanges(in: file).map {
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severity,
                            location: Location(file: file, characterOffset: $0.location))
         }

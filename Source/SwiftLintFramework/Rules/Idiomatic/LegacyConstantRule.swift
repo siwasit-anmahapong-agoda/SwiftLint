@@ -17,19 +17,19 @@ public struct LegacyConstantRule: CorrectableRule, ConfigurationProviderRule, Au
     )
 
     private static let legacyConstants: [String] = {
-        return Array(LegacyConstantRule.legacyPatterns.keys)
+        return Array(Self.legacyPatterns.keys)
     }()
 
     private static let legacyPatterns = LegacyConstantRuleExamples.patterns
 
     public func validate(file: SwiftLintFile) -> [StyleViolation] {
-        let pattern = "\\b" + LegacyConstantRule.legacyConstants.joined(separator: "|")
+        let pattern = "\\b" + Self.legacyConstants.joined(separator: "|")
 
         return file.match(pattern: pattern, range: nil)
             .filter { Set($0.1).isSubset(of: [.identifier]) }
             .map { $0.0 }
             .map {
-                StyleViolation(ruleDescription: type(of: self).description,
+                StyleViolation(ruleDescription: Self.description,
                                severity: configuration.severity,
                                location: Location(file: file, characterOffset: $0.location))
             }
@@ -37,7 +37,7 @@ public struct LegacyConstantRule: CorrectableRule, ConfigurationProviderRule, Au
 
     public func correct(file: SwiftLintFile) -> [Correction] {
         var wordBoundPatterns: [String: String] = [:]
-        LegacyConstantRule.legacyPatterns.forEach { key, value in
+        Self.legacyPatterns.forEach { key, value in
             wordBoundPatterns["\\b" + key] = value
         }
 

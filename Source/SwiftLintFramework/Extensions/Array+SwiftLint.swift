@@ -17,6 +17,19 @@ extension Array where Element: Equatable {
     }
 }
 
+extension Array where Element: Hashable {
+    static func array(of obj: Any?) -> [Element]? {
+        if let array = obj as? [Element] {
+            return array
+        } else if let set = obj as? Set<Element> {
+            return Array(set)
+        } else if let obj = obj as? Element {
+            return [obj]
+        }
+        return nil
+    }
+}
+
 extension Array {
     static func array(of obj: Any?) -> [Element]? {
         if let array = obj as? [Element] {
@@ -54,5 +67,11 @@ extension Array {
             }
             return buffer.map { $0! }
         }
+    }
+}
+
+extension Collection {
+    var isNotEmpty: Bool {
+        return !isEmpty
     }
 }

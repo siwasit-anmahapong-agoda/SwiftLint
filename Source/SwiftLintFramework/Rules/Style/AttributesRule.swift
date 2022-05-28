@@ -63,7 +63,7 @@ public struct AttributesRule: ASTRule, OptInRule, ConfigurationProviderRule {
             let idx = match.lastIndex(of: "import") ?? 0
             let location = idx + range.location
 
-            return StyleViolation(ruleDescription: type(of: self).description,
+            return StyleViolation(ruleDescription: Self.description,
                                   severity: configuration.severityConfiguration.severity,
                                   location: Location(file: file, characterOffset: location))
         }
@@ -74,7 +74,7 @@ public struct AttributesRule: ASTRule, OptInRule, ConfigurationProviderRule {
                               dictionary: SourceKittenDictionary) -> [StyleViolation] {
         let attributes = parseAttributes(dictionary: dictionary)
 
-        guard !attributes.isEmpty,
+        guard attributes.isNotEmpty,
             let offset = dictionary.offset,
             let (line, _) = file.stringView.lineAndCharacter(forByteOffset: offset) else {
             return []
@@ -96,7 +96,13 @@ public struct AttributesRule: ASTRule, OptInRule, ConfigurationProviderRule {
         let tokens = file.syntaxMap.tokens(inByteRange: line.byteRange)
         let attributesTokensWithRanges = tokens.compactMap { attributeName(token: $0, file: file) }
 
-        let attributesTokens = Set(attributesTokensWithRanges.map { $0.0 })
+        let attributesTokens = Set(
+            attributesTokensWithRanges.map { tokenString, _ in
+                // Some attributes are parameterized, such as `@objc(name)`, so discard anything from an opening
+                // parenthesis onward.
+                String(tokenString.prefix(while: { $0 != "(" }))
+            }
+        )
 
         do {
             let previousAttributesWithParameters = try attributesFromPreviousLines(lineNumber: lineNumber - 1,
@@ -118,27 +124,29 @@ public struct AttributesRule: ASTRule, OptInRule, ConfigurationProviderRule {
                 return true
             }
 
-            // ignore whitelisted attributes
-            let attributesAfterWhitelist: Set<String>
+            // ignore attributes that are explicitly allowed
+            let attributesAfterAllowed: Set<String>
             let newLineExceptions = previousAttributes.intersection(alwaysOnNewLineAttributes)
             let sameLineExceptions = attributesTokens.intersection(alwaysOnSameLineAttributes)
 
             if attributeShouldBeOnSameLine {
-                attributesAfterWhitelist = attributesTokens
-                    .union(newLineExceptions).union(sameLineExceptions)
+                attributesAfterAllowed = attributesTokens
+                    .union(newLineExceptions)
+                    .union(sameLineExceptions)
             } else {
-                attributesAfterWhitelist = attributesTokens
-                    .subtracting(newLineExceptions).subtracting(sameLineExceptions)
+                attributesAfterAllowed = attributesTokens
+                    .subtracting(newLineExceptions)
+                    .subtracting(sameLineExceptions)
             }
 
-            return attributesAfterWhitelist.isEmpty == attributeShouldBeOnSameLine
+            return attributesAfterAllowed.isEmpty == attributeShouldBeOnSameLine
         } catch {
             return true
         }
     }
 
     private func createAlwaysOnNewLineAttributes(previousAttributes: [(String, Bool)],
-                                                 attributesTokens: [(String, NSRange)],
+                                                 attributesTokens: [(String, ByteRange)],
                                                  line: Line, file: SwiftLintFile) -> Set<String> {
         let attributesTokensWithParameters: [(String, Bool)] = attributesTokens.map {
             let hasParameter = attributeContainsParameter(attributeRange: $1,
@@ -152,7 +160,7 @@ public struct AttributesRule: ASTRule, OptInRule, ConfigurationProviderRule {
             // 1. it's a parameterized attribute
             //      a. the parameter is on the token (i.e. warn_unused_result)
             //      b. the parameter was parsed in the `hasParameter` variable (most attributes)
-            // 2. it's a whitelisted attribute, according to the current configuration
+            // 2. it's an allowed attribute, according to the current configuration
             let isParameterized = hasParameter || token.bridge().contains("(")
             if isParameterized || configuration.alwaysOnNewLine.contains(token) {
                 return token
@@ -172,7 +180,7 @@ public struct AttributesRule: ASTRule, OptInRule, ConfigurationProviderRule {
         }
 
         return [
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severityConfiguration.severity,
                            location: location)
         ]
@@ -185,7 +193,6 @@ public struct AttributesRule: ASTRule, OptInRule, ConfigurationProviderRule {
         var currentLine = lineNumber - 1
         var allTokens = [(String, Bool)]()
         var foundEmptyLine = false
-        let contents = file.stringView
 
         while currentLine >= 0 {
             defer {
@@ -241,16 +248,21 @@ public struct AttributesRule: ASTRule, OptInRule, ConfigurationProviderRule {
         return allTokens
     }
 
-    private func attributeContainsParameter(attributeRange: NSRange,
+    private func attributeContainsParameter(attributeRange: ByteRange,
                                             line: Line, file: SwiftLintFile) -> Bool {
-        let restOfLineOffset = attributeRange.location + attributeRange.length
-        let restOfLineLength = line.byteRange.location + line.byteRange.length - restOfLineOffset
+        let restOfLineOffset = attributeRange.upperBound
+        let restOfLineLength = line.byteRange.upperBound - restOfLineOffset
+        if restOfLineLength < 0 {
+            // If attribute spans multiple lines, it must have a parameter.
+            return true
+        }
 
-        let regex = AttributesRule.regularExpression
+        let regex = Self.regularExpression
         let contents = file.stringView
 
         // check if after the token is a `(` with only spaces allowed between the token and `(`
-        guard let restOfLine = contents.substringWithByteRange(start: restOfLineOffset, length: restOfLineLength),
+        let restOfLineByteRange = ByteRange(location: restOfLineOffset, length: restOfLineLength)
+        guard let restOfLine = contents.substringWithByteRange(restOfLineByteRange),
             case let range = restOfLine.fullNSRange,
             regex.firstMatch(in: restOfLine, options: [], range: range) != nil else {
             return false
@@ -259,7 +271,7 @@ public struct AttributesRule: ASTRule, OptInRule, ConfigurationProviderRule {
         return true
     }
 
-    private func attributeName(token: SwiftLintSyntaxToken, file: SwiftLintFile) -> (String, NSRange)? {
+    private func attributeName(token: SwiftLintSyntaxToken, file: SwiftLintFile) -> (String, ByteRange)? {
         guard token.kind == .attributeBuiltin else {
             return nil
         }
@@ -273,6 +285,10 @@ public struct AttributesRule: ASTRule, OptInRule, ConfigurationProviderRule {
     }
 
     private func isAttribute(_ name: String) -> Bool {
+        if name == "@escaping" || name == "@autoclosure" {
+            return false
+        }
+
         // all attributes *should* start with @
         if name.hasPrefix("@") {
             return true
@@ -288,30 +304,32 @@ public struct AttributesRule: ASTRule, OptInRule, ConfigurationProviderRule {
 
     private func parseAttributes(dictionary: SourceKittenDictionary) -> [SwiftDeclarationAttributeKind] {
         let attributes = dictionary.enclosedSwiftAttributes
-        let blacklist: Set<SwiftDeclarationAttributeKind> = [
-            .mutating,
-            .nonmutating,
-            .lazy,
-            .dynamic,
-            .final,
-            .infix,
-            .optional,
-            .override,
-            .postfix,
-            .prefix,
-            .required,
-            .weak,
-            .private,
-            .fileprivate,
-            .internal,
-            .public,
-            .open,
-            .setterPrivate,
-            .setterFilePrivate,
-            .setterInternal,
-            .setterPublic,
-            .setterOpen
-        ]
-        return attributes.filter { !blacklist.contains($0) }
+        return attributes.filter { !kIgnoredAttributes.contains($0) }
     }
 }
+
+private let kIgnoredAttributes: Set<SwiftDeclarationAttributeKind> = [
+    .dynamic,
+    .fileprivate,
+    .final,
+    .infix,
+    .internal,
+    .lazy,
+    .mutating,
+    .nonmutating,
+    .open,
+    .optional,
+    .override,
+    .postfix,
+    .prefix,
+    .private,
+    .public,
+    .required,
+    .rethrows,
+    .setterFilePrivate,
+    .setterInternal,
+    .setterOpen,
+    .setterPrivate,
+    .setterPublic,
+    .weak
+]

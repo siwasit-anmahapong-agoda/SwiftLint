@@ -22,19 +22,21 @@ public struct DuplicateImportsRule: ConfigurationProviderRule, AutomaticTestable
         triggeringExamples: DuplicateImportsRuleExamples.triggeringExamples
     )
 
-    private func rangesInConditionalCompilation(file: SwiftLintFile) -> [NSRange] {
+    private func rangesInConditionalCompilation(file: SwiftLintFile) -> [ByteRange] {
         let contents = file.stringView
 
         let ranges = file.syntaxMap.tokens
             .filter { $0.kind == .buildconfigKeyword }
             .map { $0.range }
             .filter { range in
-                let keyword = contents.substringWithByteRange(start: range.location, length: range.length)
-                return ["#if", "#endif"].contains(keyword)
+                return ["#if", "#endif"].contains(contents.substringWithByteRange(range))
             }
 
+        // Make sure that each #if has corresponding #endif
+        guard ranges.count.isMultiple(of: 2) else { return [] }
+
         return stride(from: 0, to: ranges.count, by: 2).reduce(into: []) { result, rangeIndex in
-            result.append(NSUnionRange(ranges[rangeIndex], ranges[rangeIndex + 1]))
+            result.append(ranges[rangeIndex].union(with: ranges[rangeIndex + 1]))
         }
     }
 
@@ -43,13 +45,13 @@ public struct DuplicateImportsRule: ConfigurationProviderRule, AutomaticTestable
 
         let ignoredRanges = self.rangesInConditionalCompilation(file: file)
 
-        let importKinds = DuplicateImportsRule.importKinds.joined(separator: "|")
+        let importKinds = Self.importKinds.joined(separator: "|")
 
         // Grammar of import declaration
         // attributes(optional) import import-kind(optional) import-path
-        let regex = "^(\\w\\s)?import(\\s(\(importKinds)))?\\s+[a-zA-Z0-9._]+$"
+        let regex = "^([a-zA-Z@_]+\\s)?import(\\s(\(importKinds)))?\\s+[a-zA-Z0-9._]+$"
         let importRanges = file.match(pattern: regex)
-            .filter { $0.1.allSatisfy { [.keyword, .identifier].contains($0) } }
+            .filter { $0.1.allSatisfy { [.keyword, .identifier, .attributeBuiltin].contains($0) } }
             .compactMap { contents.NSRangeToByteRange(start: $0.0.location, length: $0.0.length) }
             .filter { importRange -> Bool in
                 return !importRange.intersects(ignoredRanges)
@@ -82,7 +84,9 @@ public struct DuplicateImportsRule: ConfigurationProviderRule, AutomaticTestable
                 }()
 
                 let location = Location(file: file, characterOffset: lineWithDuplicatedImport.range.location)
-                let violation = StyleViolation(ruleDescription: type(of: self).description, location: location)
+                let violation = StyleViolation(ruleDescription: Self.description,
+                                               severity: configuration.severity,
+                                               location: location)
                 violations.append(violation)
             }
         }

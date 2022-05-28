@@ -10,12 +10,14 @@ class ReporterTests: XCTestCase {
             JSONReporter.self,
             CSVReporter.self,
             CheckstyleReporter.self,
+            CodeClimateReporter.self,
             JUnitReporter.self,
             HTMLReporter.self,
             EmojiReporter.self,
             SonarQubeReporter.self,
             MarkdownReporter.self,
-            GitHubActionsLoggingReporter.self
+            GitHubActionsLoggingReporter.self,
+            GitLabJUnitReporter.self
         ]
         for reporter in reporters {
             XCTAssertEqual(reporter.identifier, reporterFrom(identifier: reporter.identifier).identifier)
@@ -66,6 +68,12 @@ class ReporterTests: XCTestCase {
         XCTAssertEqual(result, expectedOutput)
     }
 
+    func testGitLabJUnitReporter() {
+        let expectedOutput = stringFromFile("CannedGitLabJUnitReporterOutput.xml")
+        let result = GitLabJUnitReporter.generateReport(generateViolations())
+        XCTAssertEqual(result, expectedOutput)
+    }
+
     private func jsonValue(_ jsonString: String) throws -> NSObject {
         let data = jsonString.data(using: .utf8)!
         let result = try JSONSerialization.jsonObject(with: data, options: [])
@@ -92,6 +100,12 @@ class ReporterTests: XCTestCase {
     func testCheckstyleReporter() {
         let expectedOutput = stringFromFile("CannedCheckstyleReporterOutput.xml")
         let result = CheckstyleReporter.generateReport(generateViolations())
+        XCTAssertEqual(result, expectedOutput)
+    }
+
+    func testCodeClimateReporter() {
+        let expectedOutput = stringFromFile("CannedCodeClimateReporterOutput.json")
+        let result = CodeClimateReporter.generateReport(generateViolations())
         XCTAssertEqual(result, expectedOutput)
     }
 

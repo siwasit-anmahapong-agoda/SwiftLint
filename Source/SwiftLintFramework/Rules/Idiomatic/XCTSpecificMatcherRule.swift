@@ -11,7 +11,6 @@ public struct XCTSpecificMatcherRule: ASTRule, OptInRule, ConfigurationProviderR
         name: "XCTest Specific Matcher",
         description: "Prefer specific XCTest matchers over `XCTAssertEqual` and `XCTAssertNotEqual`",
         kind: .idiomatic,
-        minSwiftVersion: .fourDotOne,
         nonTriggeringExamples: XCTSpecificMatcherRuleExamples.nonTriggeringExamples,
         triggeringExamples: XCTSpecificMatcherRuleExamples.triggeringExamples
     )
@@ -46,15 +45,7 @@ public struct XCTSpecificMatcherRule: ASTRule, OptInRule, ConfigurationProviderR
                 return firstOffset < secondOffset
             }
             .prefix(2)
-            .compactMap { argument -> String? in
-                guard
-                    let argOffset = argument.offset,
-                    let argLength = argument.length,
-                    let body = file.stringView.substringWithByteRange(start: argOffset, length: argLength)
-                    else { return nil }
-
-                return body
-            }
+            .compactMap { $0.byteRange.flatMap(file.stringView.substringWithByteRange) }
             .sorted { arg1, _ -> Bool in
                 return protectedArguments.contains(arg1)
             }
@@ -81,7 +72,7 @@ public struct XCTSpecificMatcherRule: ASTRule, OptInRule, ConfigurationProviderR
             else { return [] }
 
         return [
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severity,
                            location: Location(file: file, byteOffset: offset),
                            reason: "Prefer the specific matcher '\(suggestedMatcher)' instead.")

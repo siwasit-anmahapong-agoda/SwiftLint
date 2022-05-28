@@ -12,10 +12,10 @@ public struct VerticalWhitespaceClosingBracesRule: ConfigurationProviderRule {
 
     public init() {}
 
-    private static let nonTriggeringExamples = [
-        "[1, 2].map { $0 }.filter {",
-        "[1, 2].map { $0 }.filter { num in",
-        """
+    private static let nonTriggeringExamples: [Example] = [
+        Example("[1, 2].map { $0 }.filter { true }"),
+        Example("[1, 2].map { $0 }.filter { num in true }"),
+        Example("""
         /*
             class X {
 
@@ -23,17 +23,85 @@ public struct VerticalWhitespaceClosingBracesRule: ConfigurationProviderRule {
 
             }
         */
-        """
+        """)
     ]
 
-    private static let violatingToValidExamples: [String: String] = [
-        "    print(\"x is 5\")\n↓\n}": "    print(\"x is 5\")\n}",
-        "    print(\"x is 5\")\n↓\n\n}": "    print(\"x is 5\")\n}",
-        "    print(\"x is 5\")\n↓    \n}": "    print(\"x is 5\")\n}",
-        "        )\n}\n↓\n    }\n}": "        )\n}\n    }\n}",
-        "[\n1,\n2,\n3\n↓\n]": "[\n1,\n2,\n3\n]",
-        "foo(\nx: 5,\ny:6\n↓\n)": "foo(\nx: 5,\ny:6\n)",
-        "class Name {\n    run(5) { x in print(x) }\n↓\n}": "class Name {\n    run(5) { x in print(x) }\n}"
+    private static let violatingToValidExamples: [Example: Example] = [
+        Example("""
+        do {
+          print("x is 5")
+        ↓
+        }
+        """):
+            Example("""
+            do {
+              print("x is 5")
+            }
+            """),
+        Example("""
+        do {
+          print("x is 5")
+        ↓
+
+        }
+        """):
+            Example("""
+            do {
+              print("x is 5")
+            }
+            """),
+        Example("""
+        do {
+          print("x is 5")
+        ↓\n  \n}
+        """):
+            Example("""
+            do {
+              print("x is 5")
+            }
+            """),
+        Example("""
+        [
+        1,
+        2,
+        3
+        ↓
+        ]
+        """):
+            Example("""
+            [
+            1,
+            2,
+            3
+            ]
+            """),
+        Example("""
+        foo(
+            x: 5,
+            y:6
+        ↓
+        )
+        """):
+            Example("""
+            foo(
+                x: 5,
+                y:6
+            )
+            """),
+        Example("""
+        func foo() {
+          run(5) { x in
+            print(x)
+          }
+        ↓
+        }
+        """): Example("""
+            func foo() {
+              run(5) { x in
+                print(x)
+              }
+            }
+            """)
     ]
 
     private let pattern = "((?:\\n[ \\t]*)+)(\\n[ \\t]*[)}\\]])"
@@ -64,7 +132,7 @@ extension VerticalWhitespaceClosingBracesRule: OptInRule, AutomaticTestableRule 
             let characterOffset = violationRange.location + violatingSubrange.location + 1
 
             return StyleViolation(
-                ruleDescription: type(of: self).description,
+                ruleDescription: Self.description,
                 severity: configuration.severity,
                 location: Location(file: file, characterOffset: characterOffset)
             )
@@ -75,11 +143,11 @@ extension VerticalWhitespaceClosingBracesRule: OptInRule, AutomaticTestableRule 
 extension VerticalWhitespaceClosingBracesRule: CorrectableRule {
     public func correct(file: SwiftLintFile) -> [Correction] {
         let violatingRanges = file.ruleEnabled(violatingRanges: file.violatingRanges(for: pattern), for: self)
-        guard !violatingRanges.isEmpty else { return [] }
+        guard violatingRanges.isNotEmpty else { return [] }
 
         let patternRegex: NSRegularExpression = regex(pattern)
         let replacementTemplate = "$2"
-        let description = type(of: self).description
+        let description = Self.description
 
         var corrections = [Correction]()
         var fileContents = file.contents

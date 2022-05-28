@@ -60,18 +60,10 @@ internal struct FileTypesOrderRuleExamples {
             // Life-Cycle Methods
             override func viewDidLoad() {
                 super.viewDidLoad()
-
-                view1.setNeedsLayout()
-                view1.layoutIfNeeded()
-                hasLayoutedView1 = true
             }
 
             override func viewDidLayoutSubviews() {
                 super.viewDidLayoutSubviews()
-
-                view2.setNeedsLayout()
-                view2.layoutIfNeeded()
-                hasLayoutedView2 = true
             }
 
             // IBActions
@@ -115,48 +107,51 @@ internal struct FileTypesOrderRuleExamples {
             func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
                 return 1
             }
-
-            func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-                return UITableViewCell()
-            }
         }
         """
     ]
 
     static let nonTriggeringExamples = [
-        FileTypesOrderRuleExamples.defaultOrderParts.joined(separator: "\n\n"),
-        """
+        Example(Self.defaultOrderParts.joined(separator: "\n\n")),
+        Example("""
         // Only extensions
         extension Foo {}
         extension Bar {
         }
-        """
+        """),
+        Example("""
+        struct ContentView: View {
+            var body: some View {
+                Text("Hello, World!")
+            }
+        }
+
+        struct ContentView_Previews: PreviewProvider {
+            static var previews: some View { ContentView() }
+        }
+        """)
     ]
 
     static let triggeringExamples = [
-        """
+        Example("""
         ↓class TestViewController: UIViewController {}
 
         // Supporting Types
         protocol TestViewControllerDelegate {
             func didPressTrackedButton()
         }
-        """,
-        """
+        """),
+        Example("""
         // Extensions
         ↓extension TestViewController: UITableViewDataSource {
             func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
                 return 1
-            }
-
-            func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-                return UITableViewCell()
             }
         }
 
         class TestViewController: UIViewController {}
-        """,
-        """
+        """),
+        Example("""
         // Supporting Types
         protocol TestViewControllerDelegate {
             func didPressTrackedButton()
@@ -168,8 +163,8 @@ internal struct FileTypesOrderRuleExamples {
         protocol TestViewControllerDelegate {
             func didPressTrackedButton()
         }
-        """,
-        """
+        """),
+        Example("""
         // Supporting Types
         protocol TestViewControllerDelegate {
             func didPressTrackedButton()
@@ -179,10 +174,6 @@ internal struct FileTypesOrderRuleExamples {
         ↓extension TestViewController: UITableViewDataSource {
             func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
                 return 1
-            }
-
-            func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-                return UITableViewCell()
             }
         }
 
@@ -193,11 +184,14 @@ internal struct FileTypesOrderRuleExamples {
             func tableView(_ tableView: UITableView, numberOfRowsInSection section: Int) -> Int {
                 return 1
             }
-
-            func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
-                return UITableViewCell()
-            }
         }
-        """
+        """),
+        Example("""
+        // Preview Provider
+        ↓struct ContentView_Previews: PreviewProvider {}
+
+        // Main Type
+        struct ContentView: View {}
+        """)
     ]
 }

@@ -12,80 +12,114 @@ public struct LiteralExpressionEndIdentationRule: Rule, ConfigurationProviderRul
         description: "Array and dictionary literal end should have the same indentation as the line that started it.",
         kind: .style,
         nonTriggeringExamples: [
-            "[1, 2, 3]",
-            "[1,\n" +
-            " 2\n" +
-            "]",
-            "[\n" +
-            "   1,\n" +
-            "   2\n" +
-            "]",
-            "[\n" +
-            "   1,\n" +
-            "   2]\n",
-            "   let x = [\n" +
-            "       1,\n" +
-            "       2\n" +
-            "   ]",
-            "[key: 2, key2: 3]",
-            "[key: 1,\n" +
-            " key2: 2\n" +
-            "]",
-            "[\n" +
-            "   key: 0,\n" +
-            "   key2: 20\n" +
-            "]"
+            Example("""
+            [1, 2, 3]
+            """),
+            Example("""
+            [1,
+             2
+            ]
+            """),
+            Example("""
+            [
+               1,
+               2
+            ]
+            """),
+            Example("""
+            [
+               1,
+               2]
+            """),
+            Example("""
+               let x = [
+                   1,
+                   2
+               ]
+            """),
+            Example("""
+            [key: 2, key2: 3]
+            """),
+            Example("""
+            [key: 1,
+             key2: 2
+            ]
+            """),
+            Example("""
+            [
+               key: 0,
+               key2: 20
+            ]
+            """)
         ],
         triggeringExamples: [
-            "let x = [\n" +
-            "   1,\n" +
-            "   2\n" +
-            "   ↓]",
-            "   let x = [\n" +
-            "       1,\n" +
-            "       2\n" +
-            "↓]",
-            "let x = [\n" +
-            "   key: value\n" +
-            "   ↓]"
+            Example("""
+            let x = [
+               1,
+               2
+               ↓]
+            """),
+            Example("""
+               let x = [
+                   1,
+                   2
+            ↓]
+            """),
+            Example("""
+            let x = [
+               key: value
+               ↓]
+            """)
         ],
         corrections: [
-            "let x = [\n" +
-            "   key: value\n" +
-            "↓   ]":
-            "let x = [\n" +
-            "   key: value\n" +
-            "]",
-            "   let x = [\n" +
-            "       1,\n" +
-            "       2\n" +
-            "↓]":
-            "   let x = [\n" +
-            "       1,\n" +
-            "       2\n" +
-            "   ]",
-            "let x = [\n" +
-            "   1,\n" +
-            "   2\n" +
-            "↓   ]":
-            "let x = [\n" +
-            "   1,\n" +
-            "   2\n" +
-            "]",
-            "let x = [\n" +
-            "   1,\n" +
-            "   2\n" +
-            "↓   ] + [\n" +
-            "   3,\n" +
-            "   4\n" +
-            "↓   ]":
-            "let x = [\n" +
-            "   1,\n" +
-            "   2\n" +
-            "] + [\n" +
-            "   3,\n" +
-            "   4\n" +
-            "]"
+            Example("""
+            let x = [
+               key: value
+            ↓   ]
+            """): Example("""
+            let x = [
+               key: value
+            ]
+            """),
+            Example("""
+               let x = [
+                   1,
+                   2
+            ↓]
+            """): Example("""
+               let x = [
+                   1,
+                   2
+               ]
+            """),
+            Example("""
+            let x = [
+               1,
+               2
+            ↓   ]
+            """): Example("""
+            let x = [
+               1,
+               2
+            ]
+            """),
+            Example("""
+            let x = [
+               1,
+               2
+            ↓   ] + [
+               3,
+               4
+            ↓   ]
+            """): Example("""
+            let x = [
+               1,
+               2
+            ] + [
+               3,
+               4
+            ]
+            """)
         ]
     )
 
@@ -96,11 +130,11 @@ public struct LiteralExpressionEndIdentationRule: Rule, ConfigurationProviderRul
     }
 
     private func styleViolation(for violation: Violation, in file: SwiftLintFile) -> StyleViolation {
-        let reason = "\(LiteralExpressionEndIdentationRule.description.description) " +
+        let reason = "\(Self.description.description) " +
                      "Expected \(violation.indentationRanges.expected.length), " +
                      "got \(violation.indentationRanges.actual.length)."
 
-        return StyleViolation(ruleDescription: type(of: self).description,
+        return StyleViolation(ruleDescription: Self.description,
                               severity: configuration.severity,
                               location: Location(file: file, byteOffset: violation.endOffset),
                               reason: reason)
@@ -111,11 +145,15 @@ public struct LiteralExpressionEndIdentationRule: Rule, ConfigurationProviderRul
 
 extension LiteralExpressionEndIdentationRule: CorrectableRule {
     public func correct(file: SwiftLintFile) -> [Correction] {
-        let allViolations = violations(in: file).reversed().filter {
-            !file.ruleEnabled(violatingRanges: [$0.range], for: self).isEmpty
+        let allViolations = violations(in: file).reversed().filter { violation in
+            guard let nsRange = file.stringView.byteRangeToNSRange(violation.range) else {
+                return false
+            }
+
+            return file.ruleEnabled(violatingRanges: [nsRange], for: self).isNotEmpty
         }
 
-        guard !allViolations.isEmpty else {
+        guard allViolations.isNotEmpty else {
             return []
         }
 
@@ -133,7 +171,7 @@ extension LiteralExpressionEndIdentationRule: CorrectableRule {
         }
 
         var corrections = correctedLocations.map {
-            return Correction(ruleDescription: type(of: self).description,
+            return Correction(ruleDescription: Self.description,
                               location: Location(file: file, characterOffset: $0))
         }
 
@@ -173,8 +211,8 @@ extension LiteralExpressionEndIdentationRule: CorrectableRule {
 extension LiteralExpressionEndIdentationRule {
     fileprivate struct Violation {
         var indentationRanges: (expected: NSRange, actual: NSRange)
-        var endOffset: Int
-        var range: NSRange
+        var endOffset: ByteCount
+        var range: ByteRange
     }
 
     fileprivate func violations(in file: SwiftLintFile) -> [Violation] {
@@ -194,7 +232,7 @@ extension LiteralExpressionEndIdentationRule {
         let elements = dictionary.elements.filter { $0.kind == "source.lang.swift.structure.elem.expr" }
 
         let contents = file.stringView
-        guard !elements.isEmpty,
+        guard elements.isNotEmpty,
             let offset = dictionary.offset,
             let length = dictionary.length,
             let (startLine, _) = contents.lineAndCharacter(forByteOffset: offset),
@@ -205,17 +243,19 @@ extension LiteralExpressionEndIdentationRule {
             let (lastParamLine, _) = contents.lineAndCharacter(forByteOffset: lastParamOffset),
             case let endOffset = offset + length - 1,
             let (endLine, endPosition) = contents.lineAndCharacter(forByteOffset: endOffset),
-            lastParamLine != endLine else {
-                return nil
+            lastParamLine != endLine
+        else {
+            return nil
         }
 
         let range = file.lines[startLine - 1].range
-        let regex = LiteralExpressionEndIdentationRule.notWhitespace
+        let regex = Self.notWhitespace
         let actual = endPosition - 1
         guard let match = regex.firstMatch(in: file.contents, options: [], range: range)?.range,
             case let expected = match.location - range.location,
-            expected != actual  else {
-                return nil
+            expected != actual
+        else {
+            return nil
         }
 
         var expectedRange = range
@@ -226,6 +266,6 @@ extension LiteralExpressionEndIdentationRule {
 
         return Violation(indentationRanges: (expected: expectedRange, actual: actualRange),
                          endOffset: endOffset,
-                         range: NSRange(location: offset, length: length))
+                         range: ByteRange(location: offset, length: length))
     }
 }

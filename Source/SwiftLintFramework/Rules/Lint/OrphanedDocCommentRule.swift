@@ -11,40 +11,39 @@ public struct OrphanedDocCommentRule: ConfigurationProviderRule {
         name: "Orphaned Doc Comment",
         description: "A doc comment should be attached to a declaration.",
         kind: .lint,
-        minSwiftVersion: .fourDotOne,
         nonTriggeringExamples: [
-            """
+            Example("""
             /// My great property
             var myGreatProperty: String!
-            """,
-            """
+            """),
+            Example("""
             //////////////////////////////////////
             //
             // Copyright header.
             //
             //////////////////////////////////////
-            """,
-            """
+            """),
+            Example("""
             /// Look here for more info: https://github.com.
             var myGreatProperty: String!
-            """,
-            """
+            """),
+            Example("""
             /// Look here for more info:
             /// https://github.com.
             var myGreatProperty: String!
-            """
+            """)
         ],
         triggeringExamples: [
-            """
+            Example("""
             ↓/// My great property
             // Not a doc string
             var myGreatProperty: String!
-            """,
-            """
+            """),
+            Example("""
             ↓/// Look here for more info: https://github.com.
             // Not a doc string
             var myGreatProperty: String!
-            """
+            """)
         ]
     )
 
@@ -55,12 +54,12 @@ public struct OrphanedDocCommentRule: ConfigurationProviderRule {
             return token.kind == .docComment || token.kind == .docCommentField
         }
 
-        let docummentedDeclsRanges = file.structureDictionary.traverseDepthFirst { dictionary -> [NSRange]? in
+        let docummentedDeclsRanges = file.structureDictionary.traverseDepthFirst { dictionary -> [ByteRange]? in
             guard let docOffset = dictionary.docOffset, let docLength = dictionary.docLength else {
                 return nil
             }
 
-            return [NSRange(location: docOffset, length: docLength)]
+            return [ByteRange(location: docOffset, length: docLength)]
         }.sorted { $0.location < $1.location }
 
         return docStringsTokens
@@ -70,9 +69,9 @@ public struct OrphanedDocCommentRule: ConfigurationProviderRule {
                         return false
                 }
 
-                return !contents.trimmingCharacters(in: type(of: self).characterSet).isEmpty
+                return contents.trimmingCharacters(in: Self.characterSet).isNotEmpty
             }.map { token in
-                return StyleViolation(ruleDescription: type(of: self).description,
+                return StyleViolation(ruleDescription: Self.description,
                                       severity: configuration.severity,
                                       location: Location(file: file, byteOffset: token.offset))
             }

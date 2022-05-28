@@ -15,44 +15,45 @@ public struct IdenticalOperandsRule: ConfigurationProviderRule, OptInRule, Autom
         kind: .lint,
         nonTriggeringExamples: operators.flatMap { operation in
             [
-                "1 \(operation) 2",
-                "foo \(operation) bar",
-                "prefixedFoo \(operation) foo",
-                "foo.aProperty \(operation) foo.anotherProperty",
-                "self.aProperty \(operation) self.anotherProperty",
-                "\"1 \(operation) 1\"",
-                "self.aProperty \(operation) aProperty",
-                "lhs.aProperty \(operation) rhs.aProperty",
-                "lhs.identifier \(operation) rhs.identifier",
-                "i \(operation) index",
-                "$0 \(operation) 0",
-                "keyValues?.count ?? 0 \(operation) 0",
-                "string \(operation) string.lowercased()",
-                """
+                Example("1 \(operation) 2"),
+                Example("foo \(operation) bar"),
+                Example("prefixedFoo \(operation) foo"),
+                Example("foo.aProperty \(operation) foo.anotherProperty"),
+                Example("self.aProperty \(operation) self.anotherProperty"),
+                Example("\"1 \(operation) 1\""),
+                Example("self.aProperty \(operation) aProperty"),
+                Example("lhs.aProperty \(operation) rhs.aProperty"),
+                Example("lhs.identifier \(operation) rhs.identifier"),
+                Example("i \(operation) index"),
+                Example("$0 \(operation) 0"),
+                Example("keyValues?.count ?? 0 \(operation) 0"),
+                Example("string \(operation) string.lowercased()"),
+                Example("""
                 let num: Int? = 0
                 _ = num != nil && num \(operation) num?.byteSwapped
-                """,
-                "num \(operation) num!.byteSwapped"
+                """),
+                Example("num \(operation) num!.byteSwapped")
             ]
         } + [
-            "func evaluate(_ mode: CommandMode) -> Result<AutoCorrectOptions, CommandantError<CommandantError<()>>>",
-            "let array = Array<Array<Int>>()",
-            "guard Set(identifiers).count != identifiers.count else { return }",
-            #"expect("foo") == "foo""#,
-            "type(of: model).cachePrefix == cachePrefix",
-            "histogram[156].0 == 0x003B8D96 && histogram[156].1 == 1"
+            // swiftlint:disable:next line_length
+            Example("func evaluate(_ mode: CommandMode) -> Result<AutoCorrectOptions, CommandantError<CommandantError<()>>>"),
+            Example("let array = Array<Array<Int>>()"),
+            Example("guard Set(identifiers).count != identifiers.count else { return }"),
+            Example(#"expect("foo") == "foo""#),
+            Example("type(of: model).cachePrefix == cachePrefix"),
+            Example("histogram[156].0 == 0x003B8D96 && histogram[156].1 == 1")
         ],
         triggeringExamples: operators.flatMap { operation in
             [
-                "↓1 \(operation) 1",
-                "↓foo \(operation) foo",
-                "↓foo.aProperty \(operation) foo.aProperty",
-                "↓self.aProperty \(operation) self.aProperty",
-                "↓$0 \(operation) $0",
-                "↓a?.b \(operation) a?.b",
-                "if (↓elem \(operation) elem) {}",
-                "XCTAssertTrue(↓s3 \(operation) s3)",
-                "if let tab = tabManager.selectedTab, ↓tab.webView \(operation) tab.webView"
+                Example("↓1 \(operation) 1"),
+                Example("↓foo \(operation) foo"),
+                Example("↓foo.aProperty \(operation) foo.aProperty"),
+                Example("↓self.aProperty \(operation) self.aProperty"),
+                Example("↓$0 \(operation) $0"),
+                Example("↓a?.b \(operation) a?.b"),
+                Example("if (↓elem \(operation) elem) {}"),
+                Example("XCTAssertTrue(↓s3 \(operation) s3)"),
+                Example("if let tab = tabManager.selectedTab, ↓tab.webView \(operation) tab.webView")
             ]
         }
     )
@@ -66,13 +67,13 @@ public struct IdenticalOperandsRule: ConfigurationProviderRule, OptInRule, Autom
     }
 
     public func validate(file: SwiftLintFile) -> [StyleViolation] {
-        let operators = type(of: self).operators.joined(separator: "|")
+        let operators = Self.operators.joined(separator: "|")
         return
             file.matchesAndTokens(matching: "\\s(" + operators + ")\\s")
                 .filter { _, tokens in tokens.isEmpty }
                 .compactMap { matchResult, _ in violationRangeFrom(match: matchResult, in: file) }
                 .map { range in
-                    return StyleViolation(ruleDescription: type(of: self).description,
+                    return StyleViolation(ruleDescription: Self.description,
                                           severity: configuration.severity,
                                           location: Location(file: file, characterOffset: range.location))
                 }
@@ -131,8 +132,7 @@ public struct IdenticalOperandsRule: ConfigurationProviderRule, OptInRule, Autom
             }
         }
 
-        let violationRange = file.stringView.byteRangeToNSRange(start: leftmostToken.offset,
-                                                                length: leftmostToken.length)
+        let violationRange = file.stringView.byteRangeToNSRange(leftmostToken.range)
         return violationRange
     }
 
@@ -175,12 +175,13 @@ public struct IdenticalOperandsRule: ConfigurationProviderRule, OptInRule, Autom
 
 private extension StringView {
     func subStringWithSyntaxToken(_ syntaxToken: SwiftLintSyntaxToken) -> String? {
-        return substringWithByteRange(start: syntaxToken.offset, length: syntaxToken.length)
+        return substringWithByteRange(syntaxToken.range)
     }
 
     func subStringBetweenTokens(_ startToken: SwiftLintSyntaxToken, _ endToken: SwiftLintSyntaxToken) -> String? {
-        return substringWithByteRange(start: startToken.offset + startToken.length,
-                                      length: endToken.offset - startToken.offset - startToken.length)
+        let byteRange = ByteRange(location: startToken.range.upperBound,
+                                  length: endToken.offset - startToken.range.upperBound)
+        return substringWithByteRange(byteRange)
     }
 
     func isDotOrOptionalChainingBetweenTokens(_ startToken: SwiftLintSyntaxToken,
@@ -192,7 +193,7 @@ private extension StringView {
                                    _ endToken: SwiftLintSyntaxToken) -> Bool {
         guard let betweenTokens = subStringBetweenTokens(startToken, endToken) else { return false }
         let range = betweenTokens.fullNSRange
-        return !regex(#"^[\s\(,]*$"#).matches(in: betweenTokens, options: [], range: range).isEmpty
+        return regex(#"^[\s\(,]*$"#).matches(in: betweenTokens, options: [], range: range).isNotEmpty
     }
 
     func isRegexBetweenTokens(_ startToken: SwiftLintSyntaxToken, _ regexString: String,
@@ -200,6 +201,6 @@ private extension StringView {
         guard let betweenTokens = subStringBetweenTokens(startToken, endToken) else { return false }
 
         let range = betweenTokens.fullNSRange
-        return !regex("^\\s*\(regexString)\\s*$").matches(in: betweenTokens, options: [], range: range).isEmpty
+        return regex("^\\s*\(regexString)\\s*$").matches(in: betweenTokens, options: [], range: range).isNotEmpty
     }
 }

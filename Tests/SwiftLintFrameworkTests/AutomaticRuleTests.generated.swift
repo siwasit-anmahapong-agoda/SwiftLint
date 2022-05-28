@@ -1,10 +1,15 @@
-// Generated using Sourcery 0.17.0 — https://github.com/krzysztofzablocki/Sourcery
+// Generated using Sourcery 1.7.0 — https://github.com/krzysztofzablocki/Sourcery
 // DO NOT EDIT
-
 import SwiftLintFramework
 import XCTest
 
 // swiftlint:disable file_length single_test_class type_name
+
+class AnonymousArgumentInMultilineClosureRuleTests: XCTestCase {
+    func testWithDefaultConfiguration() {
+        verifyRule(AnonymousArgumentInMultilineClosureRule.description)
+    }
+}
 
 class AnyObjectProtocolRuleTests: XCTestCase {
     func testWithDefaultConfiguration() {
@@ -18,9 +23,21 @@ class ArrayInitRuleTests: XCTestCase {
     }
 }
 
+class BalancedXCTestLifecycleRuleTests: XCTestCase {
+    func testWithDefaultConfiguration() {
+        verifyRule(BalancedXCTestLifecycleRule.description)
+    }
+}
+
 class BlockBasedKVORuleTests: XCTestCase {
     func testWithDefaultConfiguration() {
         verifyRule(BlockBasedKVORule.description)
+    }
+}
+
+class CaptureVariableRuleTests: XCTestCase {
+    func testWithDefaultConfiguration() {
+        verifyRule(CaptureVariableRule.description)
     }
 }
 
@@ -66,6 +83,12 @@ class CommaRuleTests: XCTestCase {
     }
 }
 
+class CommentSpacingRuleTests: XCTestCase {
+    func testWithDefaultConfiguration() {
+        verifyRule(CommentSpacingRule.description)
+    }
+}
+
 class ContainsOverFilterCountRuleTests: XCTestCase {
     func testWithDefaultConfiguration() {
         verifyRule(ContainsOverFilterCountRule.description)
@@ -102,6 +125,18 @@ class DiscardedNotificationCenterObserverRuleTests: XCTestCase {
     }
 }
 
+class DiscouragedAssertRuleTests: XCTestCase {
+    func testWithDefaultConfiguration() {
+        verifyRule(DiscouragedAssertRule.description)
+    }
+}
+
+class DiscouragedNoneNameRuleTests: XCTestCase {
+    func testWithDefaultConfiguration() {
+        verifyRule(DiscouragedNoneNameRule.description)
+    }
+}
+
 class DiscouragedOptionalBooleanRuleTests: XCTestCase {
     func testWithDefaultConfiguration() {
         verifyRule(DiscouragedOptionalBooleanRule.description)
@@ -126,6 +161,12 @@ class DuplicateImportsRuleTests: XCTestCase {
     }
 }
 
+class DuplicatedKeyInDictionaryLiteralRuleTests: XCTestCase {
+    func testWithDefaultConfiguration() {
+        verifyRule(DuplicatedKeyInDictionaryLiteralRule.description)
+    }
+}
+
 class DynamicInlineRuleTests: XCTestCase {
     func testWithDefaultConfiguration() {
         verifyRule(DynamicInlineRule.description)
@@ -135,12 +176,6 @@ class DynamicInlineRuleTests: XCTestCase {
 class EmptyCollectionLiteralRuleTests: XCTestCase {
     func testWithDefaultConfiguration() {
         verifyRule(EmptyCollectionLiteralRule.description)
-    }
-}
-
-class EmptyCountRuleTests: XCTestCase {
-    func testWithDefaultConfiguration() {
-        verifyRule(EmptyCountRule.description)
     }
 }
 
@@ -270,6 +305,12 @@ class FunctionDefaultParameterAtEndRuleTests: XCTestCase {
     }
 }
 
+class IBInspectableInExtensionRuleTests: XCTestCase {
+    func testWithDefaultConfiguration() {
+        verifyRule(IBInspectableInExtensionRule.description)
+    }
+}
+
 class IdenticalOperandsRuleTests: XCTestCase {
     func testWithDefaultConfiguration() {
         verifyRule(IdenticalOperandsRule.description)
@@ -348,6 +389,12 @@ class LegacyNSGeometryFunctionsRuleTests: XCTestCase {
     }
 }
 
+class LegacyObjcTypeRuleTests: XCTestCase {
+    func testWithDefaultConfiguration() {
+        verifyRule(LegacyObjcTypeRule.description)
+    }
+}
+
 class LegacyRandomRuleTests: XCTestCase {
     func testWithDefaultConfiguration() {
         verifyRule(LegacyRandomRule.description)
@@ -369,12 +416,6 @@ class LiteralExpressionEndIdentationRuleTests: XCTestCase {
 class LowerACLThanParentRuleTests: XCTestCase {
     func testWithDefaultConfiguration() {
         verifyRule(LowerACLThanParentRule.description)
-    }
-}
-
-class MissingDocsRuleTests: XCTestCase {
-    func testWithDefaultConfiguration() {
-        verifyRule(MissingDocsRule.description)
     }
 }
 
@@ -432,12 +473,6 @@ class NSObjectPreferIsEqualRuleTests: XCTestCase {
     }
 }
 
-class NestingRuleTests: XCTestCase {
-    func testWithDefaultConfiguration() {
-        verifyRule(NestingRule.description)
-    }
-}
-
 class NimbleOperatorRuleTests: XCTestCase {
     func testWithDefaultConfiguration() {
         verifyRule(NimbleOperatorRule.description)
@@ -471,12 +506,6 @@ class NoSpaceInMethodCallRuleTests: XCTestCase {
 class NotificationCenterDetachmentRuleTests: XCTestCase {
     func testWithDefaultConfiguration() {
         verifyRule(NotificationCenterDetachmentRule.description)
-    }
-}
-
-class OpeningBraceRuleTests: XCTestCase {
-    func testWithDefaultConfiguration() {
-        verifyRule(OpeningBraceRule.description)
     }
 }
 
@@ -516,15 +545,39 @@ class PatternMatchingKeywordsRuleTests: XCTestCase {
     }
 }
 
+class PreferNimbleRuleTests: XCTestCase {
+    func testWithDefaultConfiguration() {
+        verifyRule(PreferNimbleRule.description)
+    }
+}
+
+class PreferSelfInStaticReferencesRuleTests: XCTestCase {
+    func testWithDefaultConfiguration() {
+        verifyRule(PreferSelfInStaticReferencesRule.description)
+    }
+}
+
 class PreferSelfTypeOverTypeOfSelfRuleTests: XCTestCase {
     func testWithDefaultConfiguration() {
         verifyRule(PreferSelfTypeOverTypeOfSelfRule.description)
     }
 }
 
+class PreferZeroOverExplicitInitRuleTests: XCTestCase {
+    func testWithDefaultConfiguration() {
+        verifyRule(PreferZeroOverExplicitInitRule.description)
+    }
+}
+
 class PrivateActionRuleTests: XCTestCase {
     func testWithDefaultConfiguration() {
         verifyRule(PrivateActionRule.description)
+    }
+}
+
+class PrivateSubjectRuleTests: XCTestCase {
+    func testWithDefaultConfiguration() {
+        verifyRule(PrivateSubjectRule.description)
     }
 }
 
@@ -648,6 +701,12 @@ class ReturnArrowWhitespaceRuleTests: XCTestCase {
     }
 }
 
+class SelfInPropertyInitializationRuleTests: XCTestCase {
+    func testWithDefaultConfiguration() {
+        verifyRule(SelfInPropertyInitializationRule.description)
+    }
+}
+
 class ShorthandOperatorRuleTests: XCTestCase {
     func testWithDefaultConfiguration() {
         verifyRule(ShorthandOperatorRule.description)
@@ -702,6 +761,12 @@ class SyntacticSugarRuleTests: XCTestCase {
     }
 }
 
+class TestCaseAccessibilityRuleTests: XCTestCase {
+    func testWithDefaultConfiguration() {
+        verifyRule(TestCaseAccessibilityRule.description)
+    }
+}
+
 class ToggleBoolRuleTests: XCTestCase {
     func testWithDefaultConfiguration() {
         verifyRule(ToggleBoolRule.description)
@@ -717,6 +782,12 @@ class TrailingSemicolonRuleTests: XCTestCase {
 class TypeBodyLengthRuleTests: XCTestCase {
     func testWithDefaultConfiguration() {
         verifyRule(TypeBodyLengthRule.description)
+    }
+}
+
+class TypesafeArrayInitRuleTests: XCTestCase {
+    func testWithDefaultConfiguration() {
+        verifyRule(TypesafeArrayInitRule.description)
     }
 }
 

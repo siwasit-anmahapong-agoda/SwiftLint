@@ -1,6 +1,6 @@
 # SwiftLint
 
-SwiftLint 是一个用于强制检查 Swift 代码风格和规定的一个工具，基本上以 [GitHub's Swift 代码风格指南](https://github.com/github/swift-style-guide)为基础。
+SwiftLint 是一个用于强制检查 Swift 代码风格和规定的一个工具，基本上以 [Ray Wenderlich's Swift 代码风格指南](https://github.com/raywenderlich/swift-style-guide)为基础。
 
 SwiftLint Hook 了 [Clang](http://clang.llvm.org) 和 [SourceKit](http://www.jpsim.com/uncovering-sourcekit) 从而能够使用 [AST](http://clang.llvm.org/docs/IntroductionToTheClangAST.html) 来表示源代码文件的更多精确结果。
 
@@ -45,7 +45,7 @@ $ mint install realm/SwiftLint
 
 ### 编译源代码：
 
-你也可以通过 Clone SwiftLint 的 Git 仓库到本地然后执行 `git submodule update --init --recursive; make install` (Xcode 10.2+) 编译源代码的方式来安装。
+你也可以通过 Clone SwiftLint 的 Git 仓库到本地然后执行 `make install` (Xcode 12.5+) 编译源代码的方式来安装。
 
 ## 用法
 
@@ -77,7 +77,7 @@ fi
 
 #### 格式化保存 Xcode 插件
 
-在 XCode 中保存时执行 `swiftlint autocorrect`，需要从 Alcatraz 安装 [SwiftLintXcode](https://github.com/ypresto/SwiftLintXcode) 插件。
+在 Xcode 中保存时执行 `swiftlint autocorrect`，需要从 Alcatraz 安装 [SwiftLintXcode](https://github.com/ypresto/SwiftLintXcode) 插件。
 
 ⚠ ️如果没有禁用 SIP 的话，这个插件在 Xcode 8 或者更新版本的 Xcode 上将不会工作。不推荐此操作。
 
@@ -127,7 +127,7 @@ Available commands:
 在包含有需要执行代码分析的 Swift 源码文件的目录下执行 `swiftlint` 命令，会对目录进行递归查找。
 
 当使用 `lint` 或者 `autocorrect` 命令时，你可以通过添加 `--use-script-input-files` 选项并且设置以下实例变量：`SCRIPT_INPUT_FILE_COUNT` 和
-`SCRIPT_INPUT_FILE_0`, `SCRIPT_INPUT_FILE_1`... `SCRIPT_INPUT_FILE_{SCRIPT_INPUT_FILE_COUNT}` 的方式来指定一个文件列表（就像被 Xcode 特别是 [`ExtraBuildPhase`](https://github.com/norio-nomura/ExtraBuildPhase) Xcode 插件修改的文件组成的列表，或者类似 Git 工作树中 `git ls-files -m` 命令显示的被修改的文件列表）。
+`SCRIPT_INPUT_FILE_0`, `SCRIPT_INPUT_FILE_1`... `SCRIPT_INPUT_FILE_{SCRIPT_INPUT_FILE_COUNT - 1}` 的方式来指定一个文件列表（就像被 Xcode 特别是 [`ExtraBuildPhase`](https://github.com/norio-nomura/ExtraBuildPhase) Xcode 插件修改的文件组成的列表，或者类似 Git 工作树中 `git ls-files -m` 命令显示的被修改的文件列表）。
 
 也有类似的用来设置输入文件的环境变量以 [自定义 Xcode script phases](http://indiestack.com/2014/12/speeding-up-custom-script-phases/) 。
 
@@ -160,19 +160,6 @@ $ TOOLCHAINS=com.apple.dt.toolchain.Swift_2_3 swiftlint autocorrect
 ```
 
 在 Linux 上，SourceKit 默认需要位于 `/usr/lib/libsourcekitdInProc.so` 或者通过 `LINUX_SOURCEKIT_LIB_PATH` 环境变量进行指定。
-
-### Swift Version Support
-
-这里有一份 SwiftLint 版本和对应该 Swift 版本的对照表作为参考。
-
-| Swift 版本      | 最后一个 SwiftLint 支持版本 |
-|:----------------|:----------------------------|
-| Swift 1.x       | SwiftLint 0.1.2             |
-| Swift 2.x       | SwiftLint 0.18.1            |
-| Swift 3.x       | SwiftLint 0.25.1            |
-| Swift 4.0-4.1.x | SwiftLint 0.28.2            |
-| Swift 4.2.x     | SwiftLint 0.35.0            |
-| Swift 5.x       | 最新的                      |
 
 ## 规则
 
@@ -232,7 +219,7 @@ let noWarning3 = NSNumber() as! Int
 
 * `disabled_rules`: 关闭某些默认开启的规则。
 * `opt_in_rules`: 一些规则是可选的。
-* `whitelist_rules`: 不可以和 `disabled_rules` 或者 `opt_in_rules` 并列。类似一个白名单，只有在这个列表中的规则才是开启的。
+* `only_rules`: 不可以和 `disabled_rules` 或者 `opt_in_rules` 并列。类似一个白名单，只有在这个列表中的规则才是开启的。
 
 ```yaml
 disabled_rules: # 执行时排除掉的规则
@@ -283,7 +270,7 @@ identifier_name:
     - id
     - URL
     - GlobalAPIKey
-reporter: "xcode" # 报告类型 (xcode, json, csv, checkstyle, junit, html, emoji)
+reporter: "xcode" # 报告类型 (xcode, json, csv, checkstyle, codeclimate, junit, html, emoji, sonarqube, markdown, github-actions-logging)
 ```
 
 #### 定义自定义规则
@@ -294,14 +281,14 @@ reporter: "xcode" # 报告类型 (xcode, json, csv, checkstyle, junit, html, emo
 custom_rules:
   pirates_beat_ninjas: # 规则标识符
     name: "Pirates Beat Ninjas" # 规则名称，可选
-    regex: "([n,N]inja)" # 匹配的模式
+    regex: "([nN]inja)" # 匹配的模式
     match_kinds: # 需要匹配的语法类型，可选
       - comment
       - identifier
     message: "Pirates are better than ninjas." # 提示信息，可选
     severity: error # 提示的级别，可选
   no_hiding_in_strings:
-    regex: "([n,N]inja)"
+    regex: "([nN]inja)"
     match_kinds: string
 ```
 

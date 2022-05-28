@@ -20,38 +20,8 @@ public struct LargeTupleRule: ASTRule, ConfigurationProviderRule, AutomaticTesta
         name: "Large Tuple",
         description: "Tuples shouldn't have too many members. Create a custom type instead.",
         kind: .metrics,
-        nonTriggeringExamples: [
-            "let foo: (Int, Int)\n",
-            "let foo: (start: Int, end: Int)\n",
-            "let foo: (Int, (Int, String))\n",
-            "func foo() -> (Int, Int)\n",
-            "func foo() -> (Int, Int) {}\n",
-            "func foo(bar: String) -> (Int, Int)\n",
-            "func foo(bar: String) -> (Int, Int) {}\n",
-            "func foo() throws -> (Int, Int)\n",
-            "func foo() throws -> (Int, Int) {}\n",
-            "let foo: (Int, Int, Int) -> Void\n",
-            "let foo: (Int, Int, Int) throws -> Void\n",
-            "func foo(bar: (Int, String, Float) -> Void)\n",
-            "func foo(bar: (Int, String, Float) throws -> Void)\n",
-            "var completionHandler: ((_ data: Data?, _ resp: URLResponse?, _ e: NSError?) -> Void)!\n",
-            "func getDictionaryAndInt() -> (Dictionary<Int, String>, Int)?\n",
-            "func getGenericTypeAndInt() -> (Type<Int, String, Float>, Int)?\n"
-        ],
-        triggeringExamples: [
-            "↓let foo: (Int, Int, Int)\n",
-            "↓let foo: (start: Int, end: Int, value: String)\n",
-            "↓let foo: (Int, (Int, Int, Int))\n",
-            "func foo(↓bar: (Int, Int, Int))\n",
-            "func foo() -> ↓(Int, Int, Int)\n",
-            "func foo() -> ↓(Int, Int, Int) {}\n",
-            "func foo(bar: String) -> ↓(Int, Int, Int)\n",
-            "func foo(bar: String) -> ↓(Int, Int, Int) {}\n",
-            "func foo() throws -> ↓(Int, Int, Int)\n",
-            "func foo() throws -> ↓(Int, Int, Int) {}\n",
-            "func foo() throws -> ↓(Int, ↓(String, String, String), Int) {}\n",
-            "func getDictionaryAndInt() -> (Dictionary<Int, ↓(String, String, String)>, Int)?\n"
-        ]
+        nonTriggeringExamples: LargeTupleRuleExamples.nonTriggeringExamples,
+        triggeringExamples: LargeTupleRuleExamples.triggeringExamples
     )
 
     public func validate(file: SwiftLintFile, kind: SwiftDeclarationKind,
@@ -62,7 +32,7 @@ public struct LargeTupleRule: ASTRule, ConfigurationProviderRule, AutomaticTesta
         return offsets.compactMap { location, size in
             for parameter in configuration.params where size > parameter.value {
                 let reason = "Tuples should have at most \(configuration.warning) members."
-                return StyleViolation(ruleDescription: type(of: self).description,
+                return StyleViolation(ruleDescription: Self.description,
                                       severity: parameter.severity,
                                       location: Location(file: file, byteOffset: location),
                                       reason: reason)
@@ -73,7 +43,7 @@ public struct LargeTupleRule: ASTRule, ConfigurationProviderRule, AutomaticTesta
     }
 
     private func violationOffsetsForTypes(in file: SwiftLintFile, dictionary: SourceKittenDictionary,
-                                          kind: SwiftDeclarationKind) -> [(offset: Int, size: Int)] {
+                                          kind: SwiftDeclarationKind) -> [(offset: ByteCount, size: Int)] {
         let kinds = SwiftDeclarationKind.variableKinds.subtracting([.varLocal])
         guard kinds.contains(kind),
             let type = dictionary.typeName,
@@ -86,12 +56,11 @@ public struct LargeTupleRule: ASTRule, ConfigurationProviderRule, AutomaticTesta
     }
 
     private func violationOffsetsForFunctions(in file: SwiftLintFile, dictionary: SourceKittenDictionary,
-                                              kind: SwiftDeclarationKind) -> [(offset: Int, size: Int)] {
+                                              kind: SwiftDeclarationKind) -> [(offset: ByteCount, size: Int)] {
         let contents = file.stringView
         guard SwiftDeclarationKind.functionKinds.contains(kind),
             let returnRange = returnRangeForFunction(dictionary: dictionary),
-            let returnSubstring = contents.substringWithByteRange(start: returnRange.location,
-                                                                  length: returnRange.length) else {
+            let returnSubstring = contents.substringWithByteRange(returnRange) else {
                 return []
         }
 
@@ -99,13 +68,13 @@ public struct LargeTupleRule: ASTRule, ConfigurationProviderRule, AutomaticTesta
         return offsets.sorted { $0.offset < $1.offset }
     }
 
-    private func violationOffsets(for text: String, initialOffset: Int = 0) -> [(offset: Int, size: Int)] {
+    private func violationOffsets(for text: String, initialOffset: ByteCount = 0) -> [(offset: ByteCount, size: Int)] {
         guard let ranges = try? parenthesesRanges(in: text) else {
             return []
         }
 
         var text = text.bridge()
-        var offsets = [(offset: Int, size: Int)]()
+        var offsets = [(offset: ByteCount, size: Int)]()
 
         for (range, kind) in ranges {
             let substring = text.substring(with: range)
@@ -124,7 +93,7 @@ public struct LargeTupleRule: ASTRule, ConfigurationProviderRule, AutomaticTesta
         return offsets
     }
 
-    private func returnRangeForFunction(dictionary: SourceKittenDictionary) -> NSRange? {
+    private func returnRangeForFunction(dictionary: SourceKittenDictionary) -> ByteRange? {
         guard let nameOffset = dictionary.nameOffset,
             let nameLength = dictionary.nameLength,
             let length = dictionary.length,
@@ -139,7 +108,7 @@ public struct LargeTupleRule: ASTRule, ConfigurationProviderRule, AutomaticTesta
             return nil
         }
 
-        return NSRange(location: start, length: end - start)
+        return ByteRange(location: start, length: end - start)
     }
 
     private func parenthesesRanges(in text: String) throws -> [(NSRange, RangeKind)] {
@@ -195,7 +164,9 @@ public struct LargeTupleRule: ASTRule, ConfigurationProviderRule, AutomaticTesta
     }
 
     private func containsReturnArrow(in text: String, range: NSRange) -> Bool {
-        let arrowRegex = regex("\\A(?:\\s*throws)?\\s*->")
+        let arrowRegex = SwiftVersion.current >= .fiveDotFive
+                        ? regex("\\A(?:\\s*async)?(?:\\s*throws)?\\s*->")
+                        : regex("\\A(?:\\s*throws)?\\s*->")
         let start = NSMaxRange(range)
         let restOfStringRange = NSRange(location: start, length: text.bridge().length - start)
 

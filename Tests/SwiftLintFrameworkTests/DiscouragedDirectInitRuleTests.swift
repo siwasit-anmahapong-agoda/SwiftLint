@@ -2,7 +2,7 @@ import SwiftLintFramework
 import XCTest
 
 class DiscouragedDirectInitRuleTests: XCTestCase {
-    let baseDescription = DiscouragedDirectInitRule.description
+    private let baseDescription = DiscouragedDirectInitRule.description
 
     func testDiscouragedDirectInitWithDefaultConfiguration() {
         verifyRule(baseDescription)
@@ -14,13 +14,13 @@ class DiscouragedDirectInitRuleTests: XCTestCase {
 
     func testDiscouragedDirectInitWithNewIncludedTypes() {
         let triggeringExamples = [
-            "let foo = ↓Foo()",
-            "let bar = ↓Bar()"
+            Example("let foo = ↓Foo()"),
+            Example("let bar = ↓Bar()")
         ]
 
         let nonTriggeringExamples = [
-            "let foo = Foo(arg: toto)",
-            "let bar = Bar(arg: \"toto\")"
+            Example("let foo = Foo(arg: toto)"),
+            Example("let bar = Bar(arg: \"toto\")")
         ]
 
         let description = baseDescription
@@ -32,11 +32,11 @@ class DiscouragedDirectInitRuleTests: XCTestCase {
 
     func testDiscouragedDirectInitWithReplacedTypes() {
         let triggeringExamples = [
-            "let bundle = ↓Bundle()"
+            Example("let bundle = ↓Bundle()")
         ]
 
         let nonTriggeringExamples = [
-            "let device = UIDevice()"
+            Example("let device = UIDevice()")
         ]
 
         let description = baseDescription

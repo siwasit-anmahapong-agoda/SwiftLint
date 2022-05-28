@@ -2,291 +2,324 @@ import Foundation
 import SourceKittenFramework
 
 /// The configuration struct for SwiftLint. User-defined in the `.swiftlint.yml` file, drives the behavior of SwiftLint.
-public struct Configuration: Hashable {
-    /// Represents how a Configuration object can be configured with regards to rules.
-    public enum RulesMode {
-        /// The default rules mode, which will enable all rules that aren't defined as being opt-in
-        /// (conforming to the `OptInRule` protocol), minus the rules listed in `disabled`, plus the rules lised in
-        /// `optIn`.
-        case `default`(disabled: [String], optIn: [String])
-        /// Only enable the rules explicitly listed.
-        case whitelisted([String])
-        /// Enable all available rules.
-        case allEnabled
+public struct Configuration {
+    // MARK: - Properties: Static
+    /// The default Configuration resulting from an empty configuration file.
+    public static var `default`: Configuration {
+        // This is realized via a getter to account for differences of the current working directory
+        Configuration()
     }
 
-    // MARK: Properties
+    /// The default file name to look for user-defined configurations.
+    public static let defaultFileName = ".swiftlint.yml"
 
-    /// The standard file name to look for user-defined configurations.
-    public static let fileName = ".swiftlint.yml"
+    // MARK: Public Instance
+    /// The paths that should be included when linting
+    public private(set) var includedPaths: [String]
+
+    /// The paths that should be excluded when linting
+    public private(set) var excludedPaths: [String]
 
     /// The style to use when indenting Swift source code.
     public let indentation: IndentationStyle
-    /// Included paths to lint.
-    public let included: [String]
-    /// Excluded paths to not lint.
-    public let excluded: [String]
-    /// The identifier for the `Reporter` to use to report style violations.
-    public let reporter: String
+
     /// The threshold for the number of warnings to tolerate before treating the lint as having failed.
     public let warningThreshold: Int?
-    /// The root directory to search for nested configurations.
-    public private(set) var rootPath: String?
-    /// The absolute path from where this configuration was loaded from, if any.
-    public private(set) var configurationPath: String?
-    /// The location of the persisted cache to use whith this configuration.
+
+    /// The identifier for the `Reporter` to use to report style violations.
+    public let reporter: String
+
+    /// The location of the persisted cache to use with this configuration.
     public let cachePath: String?
 
-    public func hash(into hasher: inout Hasher) {
-        if let configurationPath = configurationPath {
-            hasher.combine(configurationPath)
-        } else if let rootPath = rootPath {
-            hasher.combine(rootPath)
-        } else if let cachePath = cachePath {
-            hasher.combine(cachePath)
-        } else {
-            hasher.combine(included)
-            hasher.combine(excluded)
-            hasher.combine(reporter)
-        }
-    }
+    /// Allow or disallow SwiftLint to exit successfully when passed only ignored or unlintable files.
+    public let allowZeroLintableFiles: Bool
 
+    /// This value is `true` iff the `--config` parameter was used to specify (a) configuration file(s)
+    /// In particular, this means that the value is also `true` if the `--config` parameter
+    /// was used to explicitly specify the default `.swiftlint.yml` as the configuration file
+    public private(set) var basedOnCustomConfigurationFiles = false
+
+    // MARK: Public Computed
+    /// All rules enabled in this configuration
+    public var rules: [Rule] { rulesWrapper.resultingRules }
+
+    /// The root directory is the directory that included & excluded paths relate to.
+    /// By default, the root directory is the current working directory,
+    /// but during some merging algorithms it may be used differently.
+    /// The rootDirectory also serves as the stopping point when searching for nested configs along the file hierarchy.
+    public var rootDirectory: String { fileGraph.rootDirectory }
+
+    /// The rules mode used for this configuration.
+    public var rulesMode: RulesMode { rulesWrapper.mode }
+
+    // MARK: Internal Instance
+    internal var fileGraph: FileGraph
+    internal private(set) var rulesWrapper: RulesWrapper
     internal var computedCacheDescription: String?
 
-    internal var customRuleIdentifiers: [String] {
-        let customRule = rules.first(where: { $0 is CustomRules }) as? CustomRules
-        return customRule?.configuration.customRuleConfigurations.map { $0.identifier } ?? []
+    // MARK: - Initializers: Internal
+    /// Initialize with all properties
+    internal init(
+        rulesWrapper: RulesWrapper,
+        fileGraph: FileGraph,
+        includedPaths: [String],
+        excludedPaths: [String],
+        indentation: IndentationStyle,
+        warningThreshold: Int?,
+        reporter: String,
+        cachePath: String?,
+        allowZeroLintableFiles: Bool
+    ) {
+        self.rulesWrapper = rulesWrapper
+        self.fileGraph = fileGraph
+        self.includedPaths = includedPaths
+        self.excludedPaths = excludedPaths
+        self.indentation = indentation
+        self.warningThreshold = warningThreshold
+        self.reporter = reporter
+        self.cachePath = cachePath
+        self.allowZeroLintableFiles = allowZeroLintableFiles
     }
 
-    // MARK: Rules Properties
+    /// Creates a Configuration by copying an existing configuration.
+    ///
+    /// - parameter copying:    The existing configuration to copy.
+    internal init(copying configuration: Configuration) {
+        rulesWrapper = configuration.rulesWrapper
+        fileGraph = configuration.fileGraph
+        includedPaths = configuration.includedPaths
+        excludedPaths = configuration.excludedPaths
+        indentation = configuration.indentation
+        warningThreshold = configuration.warningThreshold
+        reporter = configuration.reporter
+        basedOnCustomConfigurationFiles = configuration.basedOnCustomConfigurationFiles
+        cachePath = configuration.cachePath
+        allowZeroLintableFiles = configuration.allowZeroLintableFiles
+    }
 
-    /// All rules enabled in this configuration, derived from disabled, opt-in and whitelist rules
-    public let rules: [Rule]
-
-    internal let rulesMode: RulesMode
-
-    // MARK: Initializers
-
-    /// Creates a `Configuration` by specifying its properties directly.
-    public init?(rulesMode: RulesMode = .default(disabled: [], optIn: []),
-                 included: [String] = [],
-                 excluded: [String] = [],
-                 warningThreshold: Int? = nil,
-                 reporter: String = XcodeReporter.identifier,
-                 ruleList: RuleList = masterRuleList,
-                 configuredRules: [Rule]? = nil,
-                 swiftlintVersion: String? = nil,
-                 cachePath: String? = nil,
-                 indentation: IndentationStyle = .default,
-                 customRulesIdentifiers: [String] = []) {
-        if let pinnedVersion = swiftlintVersion, pinnedVersion != Version.current.value {
-            queuedPrintError("Currently running SwiftLint \(Version.current.value) but " +
-                "configuration specified version \(pinnedVersion).")
+    /// Creates a `Configuration` by specifying its properties directly,
+    /// except that rules are still to be synthesized from rulesMode, ruleList & allRulesWrapped
+    /// and a check against the pinnedVersion is performed if given.
+    ///
+    /// - parameter rulesMode:              The `RulesMode` for this configuration.
+    /// - parameter allRulesWrapped:        The rules with their own configurations already applied.
+    /// - parameter ruleList:               The list of all rules. Used for alias resolving and as a fallback
+    ///                                     if `allRulesWrapped` is nil.
+    /// - parameter filePath                The underlaying file graph. If `nil` is specified, a empty file graph
+    ///                                     with the current working directory as the `rootDirectory` will be used
+    /// - parameter includedPaths:          Included paths to lint.
+    /// - parameter excludedPaths:          Excluded paths to not lint.
+    /// - parameter indentation:            The style to use when indenting Swift source code.
+    /// - parameter warningThreshold:       The threshold for the number of warnings to tolerate before treating the
+    ///                                     lint as having failed.
+    /// - parameter reporter:               The identifier for the `Reporter` to use to report style violations.
+    /// - parameter cachePath:              The location of the persisted cache to use whith this configuration.
+    /// - parameter pinnedVersion:          The SwiftLint version defined in this configuration.
+    /// - parameter allowZeroLintableFiles: Allow SwiftLint to exit successfully when passed ignored or unlintable files
+    internal init(
+        rulesMode: RulesMode = .default(disabled: [], optIn: []),
+        allRulesWrapped: [ConfigurationRuleWrapper]? = nil,
+        ruleList: RuleList = primaryRuleList,
+        fileGraph: FileGraph? = nil,
+        includedPaths: [String] = [],
+        excludedPaths: [String] = [],
+        indentation: IndentationStyle = .default,
+        warningThreshold: Int? = nil,
+        reporter: String = XcodeReporter.identifier,
+        cachePath: String? = nil,
+        pinnedVersion: String? = nil,
+        allowZeroLintableFiles: Bool = false
+    ) {
+        if let pinnedVersion = pinnedVersion, pinnedVersion != Version.current.value {
+            queuedPrintError(
+                "Currently running SwiftLint \(Version.current.value) but " +
+                "configuration specified version \(pinnedVersion)."
+            )
             exit(2)
         }
 
-        let configuredRules = configuredRules
-            ?? (try? ruleList.configuredRules(with: [:]))
-            ?? []
-
-        let handleAliasWithRuleList: (String) -> String = { ruleList.identifier(for: $0) ?? $0 }
-
-        guard let rules = enabledRules(from: configuredRules,
-                                       with: rulesMode,
-                                       aliasResolver: handleAliasWithRuleList,
-                                       customRulesIdentifiers: customRulesIdentifiers) else {
-            return nil
-        }
-
-        self.init(rulesMode: rulesMode,
-                  included: included,
-                  excluded: excluded,
-                  warningThreshold: warningThreshold,
-                  reporter: reporter,
-                  rules: rules,
-                  cachePath: cachePath,
-                  indentation: indentation)
+        self.init(
+            rulesWrapper: RulesWrapper(
+                mode: rulesMode,
+                allRulesWrapped: allRulesWrapped ?? (try? ruleList.allRulesWrapped()) ?? [],
+                aliasResolver: { ruleList.identifier(for: $0) ?? $0 }
+            ),
+            fileGraph: fileGraph ?? FileGraph(
+                rootDirectory: FileManager.default.currentDirectoryPath.bridge().absolutePathStandardized()
+            ),
+            includedPaths: includedPaths,
+            excludedPaths: excludedPaths,
+            indentation: indentation,
+            warningThreshold: warningThreshold,
+            reporter: reporter,
+            cachePath: cachePath,
+            allowZeroLintableFiles: allowZeroLintableFiles
+        )
     }
 
-    internal init(rulesMode: RulesMode,
-                  included: [String],
-                  excluded: [String],
-                  warningThreshold: Int?,
-                  reporter: String,
-                  rules: [Rule],
-                  cachePath: String?,
-                  rootPath: String? = nil,
-                  indentation: IndentationStyle) {
-        self.rulesMode = rulesMode
-        self.included = included
-        self.excluded = excluded
-        self.reporter = reporter
-        self.cachePath = cachePath
-        self.rules = rules.sorted { type(of: $0).description.identifier < type(of: $1).description.identifier }
-        self.rootPath = rootPath
-        self.indentation = indentation
-
-        // set the config threshold to the threshold provided in the config file
-        self.warningThreshold = warningThreshold
-    }
-
-    private init(_ configuration: Configuration) {
-        rulesMode = configuration.rulesMode
-        included = configuration.included
-        excluded = configuration.excluded
-        warningThreshold = configuration.warningThreshold
-        reporter = configuration.reporter
-        rules = configuration.rules
-        cachePath = configuration.cachePath
-        rootPath = configuration.rootPath
-        indentation = configuration.indentation
-    }
-
+    // MARK: Public
     /// Creates a `Configuration` with convenience parameters.
-    public init(path: String = Configuration.fileName, rootPath: String? = nil,
-                optional: Bool = true, quiet: Bool = false, enableAllRules: Bool = false,
-                cachePath: String? = nil, customRulesIdentifiers: [String] = []) {
-        let fullPath: String
-        if let rootPath = rootPath, rootPath.isDirectory() {
-            fullPath = path.bridge().absolutePathRepresentation(rootDirectory: rootPath)
-        } else {
-            fullPath = path.bridge().absolutePathRepresentation()
-        }
-
-        if let cachedConfig = Configuration.getCached(atPath: fullPath) {
-            self.init(cachedConfig)
-            configurationPath = fullPath
-            return
-        }
-
-        let fail = { (msg: String) in
-            queuedPrintError("\(fullPath):\(msg)")
-            queuedFatalError("Could not read configuration file at path '\(fullPath)'")
-        }
-        let rulesMode: RulesMode = enableAllRules ? .allEnabled : .default(disabled: [], optIn: [])
-        if path.isEmpty || !FileManager.default.fileExists(atPath: fullPath) {
-            if !optional { fail("File not found.") }
-            self.init(rulesMode: rulesMode, cachePath: cachePath, customRulesIdentifiers: customRulesIdentifiers)!
-            self.rootPath = rootPath
-            return
-        }
-        do {
-            let yamlContents = try String(contentsOfFile: fullPath, encoding: .utf8)
-            let dict = try YamlParser.parse(yamlContents)
-            if !quiet {
-                queuedPrintError("Loading configuration from '\(path)'")
+    ///
+    /// - parameter configurationFiles:         The path on disk to one or multiple configuration files. If this array
+    ///                                         is empty, the default `.swiftlint.yml` file will be used.
+    /// - parameter enableAllRules:             Enable all available rules.
+    /// - parameter cachePath:                  The location of the persisted cache to use whith this configuration.
+    /// - parameter ignoreParentAndChildConfigs:If `true`, child and parent config references will be ignored.
+    /// - parameter mockedNetworkResults:       For testing purposes only. Instead of loading the specified urls,
+    ///                                         the mocked value will be used. Example: ["http://mock.com": "content"]
+    /// - parameter useDefaultConfigOnFailure:  If this value is specified, it will override the normal behavior.
+    ///                                         This is only intended for tests checking whether invalid configs fail.
+    public init(
+        configurationFiles: [String], // No default value here to avoid ambiguous Configuration() initializer
+        enableAllRules: Bool = false,
+        cachePath: String? = nil,
+        ignoreParentAndChildConfigs: Bool = false,
+        mockedNetworkResults: [String: String] = [:],
+        useDefaultConfigOnFailure: Bool? = nil
+    ) {
+        // Handle mocked network results if needed
+        Self.FileGraph.FilePath.mockedNetworkResults = mockedNetworkResults
+        defer {
+            if !mockedNetworkResults.isEmpty {
+                Self.FileGraph.FilePath.deleteGitignoreAndSwiftlintCache()
             }
-            self.init(dict: dict, enableAllRules: enableAllRules,
-                      cachePath: cachePath, customRulesIdentifiers: customRulesIdentifiers)!
-            configurationPath = fullPath
-            self.rootPath = rootPath
-            setCached(atPath: fullPath)
-            return
-        } catch YamlParserError.yamlParsing(let message) {
-            fail(message)
-        } catch {
-            fail("\(error)")
         }
-        self.init(rulesMode: rulesMode, cachePath: cachePath, customRulesIdentifiers: customRulesIdentifiers)!
-        setCached(atPath: fullPath)
+
+        // Store whether there are custom configuration files; use default config file name if there are none
+        let hasCustomConfigurationFiles: Bool = configurationFiles.isNotEmpty
+        let configurationFiles = configurationFiles.isEmpty ? [Self.defaultFileName] : configurationFiles
+        defer { basedOnCustomConfigurationFiles = hasCustomConfigurationFiles }
+
+        let currentWorkingDirectory = FileManager.default.currentDirectoryPath.bridge().absolutePathStandardized()
+        let rulesMode: RulesMode = enableAllRules ? .allEnabled : .default(disabled: [], optIn: [])
+
+        // Try obtaining cached config
+        let cacheIdentifier = "\(currentWorkingDirectory) - \(configurationFiles)"
+        if let cachedConfig = Self.getCached(forIdentifier: cacheIdentifier) {
+            self.init(copying: cachedConfig)
+            return
+        }
+
+        // Try building configuration via the file graph
+        do {
+            var fileGraph = FileGraph(
+                commandLineChildConfigs: configurationFiles,
+                rootDirectory: currentWorkingDirectory,
+                ignoreParentAndChildConfigs: ignoreParentAndChildConfigs
+            )
+            let resultingConfiguration = try fileGraph.resultingConfiguration(
+                enableAllRules: enableAllRules,
+                cachePath: cachePath
+            )
+
+            self.init(copying: resultingConfiguration)
+            self.fileGraph = fileGraph
+            setCached(forIdentifier: cacheIdentifier)
+        } catch {
+            let errorString: String
+            let initializationResult = FileGraphInitializationResult(
+                error: error, hasCustomConfigurationFiles: hasCustomConfigurationFiles
+            )
+            switch initializationResult {
+            case .initialImplicitFileNotFound:
+                // Silently fall back to default
+                self.init(rulesMode: rulesMode, cachePath: cachePath)
+                return
+            case .error(let message):
+                errorString = message
+            }
+
+            if useDefaultConfigOnFailure ?? !hasCustomConfigurationFiles {
+                // No files were explicitly specified, so maybe the user doesn't want a config at all -> warn
+                queuedPrintError("warning: \(errorString) – Falling back to default configuration")
+                self.init(rulesMode: rulesMode, cachePath: cachePath)
+            } else {
+                // Files that were explicitly specified could not be loaded -> fail
+                queuedPrintError("error: \(errorString)")
+                queuedFatalError("Could not read configuration")
+            }
+        }
     }
 
-    // MARK: Equatable
+    // MARK: - Methods: Internal
+    mutating func makeIncludedAndExcludedPaths(relativeTo newBasePath: String, previousBasePath: String) {
+        includedPaths = includedPaths.map {
+            $0.bridge().absolutePathRepresentation(rootDirectory: previousBasePath).path(relativeTo: newBasePath)
+        }
+
+        excludedPaths = excludedPaths.map {
+            $0.bridge().absolutePathRepresentation(rootDirectory: previousBasePath).path(relativeTo: newBasePath)
+        }
+    }
+}
+
+// MARK: - FileGraphInitializationResult
+private enum FileGraphInitializationResult {
+    case initialImplicitFileNotFound
+    case error(message: String)
+
+    init(error: Error, hasCustomConfigurationFiles: Bool) {
+        switch error {
+        case let ConfigurationError.initialFileNotFound(path):
+            if hasCustomConfigurationFiles {
+                self = .error(message: "SwiftLint Configuration Error: Could not read file at path: \(path)")
+            } else {
+                // The initial configuration file wasn't found, but the user didn't explicitly specify one
+                // -> don't handle as error
+                self = .initialImplicitFileNotFound
+            }
+        case let ConfigurationError.generic(message):
+            self = .error(message: "SwiftLint Configuration Error: \(message)")
+        case let YamlParserError.yamlParsing(message):
+            self = .error(message: "YML Parsing Error: \(message)")
+        default:
+            self = .error(message: error.localizedDescription)
+        }
+    }
+}
+
+// MARK: - Hashable
+extension Configuration: Hashable {
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(includedPaths)
+        hasher.combine(excludedPaths)
+        hasher.combine(indentation)
+        hasher.combine(warningThreshold)
+        hasher.combine(reporter)
+        hasher.combine(allowZeroLintableFiles)
+        hasher.combine(basedOnCustomConfigurationFiles)
+        hasher.combine(cachePath)
+        hasher.combine(rules.map { type(of: $0).description.identifier })
+        hasher.combine(fileGraph)
+    }
 
     public static func == (lhs: Configuration, rhs: Configuration) -> Bool {
-        return (lhs.warningThreshold == rhs.warningThreshold) &&
-            (lhs.reporter == rhs.reporter) &&
-            (lhs.rootPath == rhs.rootPath) &&
-            (lhs.configurationPath == rhs.configurationPath) &&
-            (lhs.cachePath == rhs.cachePath) &&
-            (lhs.included == rhs.included) &&
-            (lhs.excluded == rhs.excluded) &&
-            (lhs.rules == rhs.rules) &&
-            (lhs.indentation == rhs.indentation)
+        return lhs.includedPaths == rhs.includedPaths &&
+            lhs.excludedPaths == rhs.excludedPaths &&
+            lhs.indentation == rhs.indentation &&
+            lhs.warningThreshold == rhs.warningThreshold &&
+            lhs.reporter == rhs.reporter &&
+            lhs.basedOnCustomConfigurationFiles == rhs.basedOnCustomConfigurationFiles &&
+            lhs.cachePath == rhs.cachePath &&
+            lhs.rules == rhs.rules &&
+            lhs.fileGraph == rhs.fileGraph &&
+            lhs.allowZeroLintableFiles == rhs.allowZeroLintableFiles
     }
 }
 
-// MARK: Identifier Validation
-
-private func validateRuleIdentifiers(ruleIdentifiers: [String], validRuleIdentifiers: [String]) -> [String] {
-    // Validate that all rule identifiers map to a defined rule
-    let invalidRuleIdentifiers = ruleIdentifiers.filter { !validRuleIdentifiers.contains($0) }
-    if !invalidRuleIdentifiers.isEmpty {
-        for invalidRuleIdentifier in invalidRuleIdentifiers {
-            queuedPrintError("configuration error: '\(invalidRuleIdentifier)' is not a valid rule identifier")
-        }
-        let listOfValidRuleIdentifiers = validRuleIdentifiers.sorted().joined(separator: "\n")
-        queuedPrintError("Valid rule identifiers:\n\(listOfValidRuleIdentifiers)")
-    }
-
-    return ruleIdentifiers.filter(validRuleIdentifiers.contains)
-}
-
-private func containsDuplicateIdentifiers(_ identifiers: [String]) -> Bool {
-    // Validate that rule identifiers aren't listed multiple times
-
-    guard Set(identifiers).count != identifiers.count else {
-        return false
-    }
-
-    let duplicateRules = identifiers.reduce(into: [String: Int]()) { $0[$1, default: 0] += 1 }
-        .filter { $0.1 > 1 }
-    queuedPrintError(duplicateRules.map { rule in
-        "configuration error: '\(rule.0)' is listed \(rule.1) times"
-    }.joined(separator: "\n"))
-    return true
-}
-
-private func enabledRules(from configuredRules: [Rule],
-                          with mode: Configuration.RulesMode,
-                          aliasResolver: (String) -> String,
-                          customRulesIdentifiers: [String]) -> [Rule]? {
-    let regularRuleIdentifiers = configuredRules.map { type(of: $0).description.identifier }
-    let configurationCustomRulesIdentifiers = (configuredRules.first(where: { $0 is CustomRules }) as? CustomRules)?
-        .configuration.customRuleConfigurations.map { $0.identifier } ?? []
-    let validRuleIdentifiers = regularRuleIdentifiers + configurationCustomRulesIdentifiers + customRulesIdentifiers
-
-    switch mode {
-    case .allEnabled:
-        return configuredRules
-    case .whitelisted(let whitelistedRuleIdentifiers):
-        let validWhitelistedRuleIdentifiers = validateRuleIdentifiers(
-            ruleIdentifiers: whitelistedRuleIdentifiers.map(aliasResolver),
-            validRuleIdentifiers: validRuleIdentifiers)
-        // Validate that rule identifiers aren't listed multiple times
-        if containsDuplicateIdentifiers(validWhitelistedRuleIdentifiers) {
-            return nil
-        }
-        return configuredRules.filter { rule in
-            return validWhitelistedRuleIdentifiers.contains(type(of: rule).description.identifier)
-        }
-    case let .default(disabledRuleIdentifiers, optInRuleIdentifiers):
-        let validDisabledRuleIdentifiers = validateRuleIdentifiers(
-            ruleIdentifiers: disabledRuleIdentifiers.map(aliasResolver),
-            validRuleIdentifiers: validRuleIdentifiers)
-        let validOptInRuleIdentifiers = validateRuleIdentifiers(
-            ruleIdentifiers: optInRuleIdentifiers.map(aliasResolver),
-            validRuleIdentifiers: validRuleIdentifiers)
-        // Same here
-        if containsDuplicateIdentifiers(validDisabledRuleIdentifiers)
-            || containsDuplicateIdentifiers(validOptInRuleIdentifiers) {
-            return nil
-        }
-        return configuredRules.filter { rule in
-            let id = type(of: rule).description.identifier
-            if validDisabledRuleIdentifiers.contains(id) { return false }
-            return validOptInRuleIdentifiers.contains(id) || !(rule is OptInRule)
-        }
-    }
-}
-
-private extension String {
-    func isDirectory() -> Bool {
-        var isDir: ObjCBool = false
-        if FileManager.default.fileExists(atPath: self, isDirectory: &isDir) {
-            return isDir.boolValue
-        }
-
-        return false
+// MARK: - CustomStringConvertible
+extension Configuration: CustomStringConvertible {
+    public var description: String {
+        return "Configuration: \n"
+            + "- Indentation Style: \(indentation)\n"
+            + "- Included Paths: \(includedPaths)\n"
+            + "- Excluded Paths: \(excludedPaths)\n"
+            + "- Warning Threshold: \(warningThreshold as Optional)\n"
+            + "- Root Directory: \(rootDirectory as Optional)\n"
+            + "- Reporter: \(reporter)\n"
+            + "- Cache Path: \(cachePath as Optional)\n"
+            + "- Computed Cache Description: \(computedCacheDescription as Optional)\n"
+            + "- Rules: \(rules.map { type(of: $0).description.identifier })"
     }
 }

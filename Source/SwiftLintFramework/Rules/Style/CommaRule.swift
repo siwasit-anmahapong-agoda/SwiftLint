@@ -12,33 +12,33 @@ public struct CommaRule: SubstitutionCorrectableRule, ConfigurationProviderRule,
         description: "There should be no space before and one after any comma.",
         kind: .style,
         nonTriggeringExamples: [
-            "func abc(a: String, b: String) { }",
-            "abc(a: \"string\", b: \"string\"",
-            "enum a { case a, b, c }",
-            "func abc(\n  a: String,  // comment\n  bcd: String // comment\n) {\n}\n",
-            "func abc(\n  a: String,\n  bcd: String\n) {\n}\n",
-            "#imageLiteral(resourceName: \"foo,bar,baz\")"
+            Example("func abc(a: String, b: String) { }"),
+            Example("abc(a: \"string\", b: \"string\""),
+            Example("enum a { case a, b, c }"),
+            Example("func abc(\n  a: String,  // comment\n  bcd: String // comment\n) {\n}\n"),
+            Example("func abc(\n  a: String,\n  bcd: String\n) {\n}\n"),
+            Example("#imageLiteral(resourceName: \"foo,bar,baz\")")
         ],
         triggeringExamples: [
-            "func abc(a: String↓ ,b: String) { }",
-            "func abc(a: String↓ ,b: String↓ ,c: String↓ ,d: String) { }",
-            "abc(a: \"string\"↓,b: \"string\"",
-            "enum a { case a↓ ,b }",
-            "let result = plus(\n    first: 3↓ , // #683\n    second: 4\n)\n"
+            Example("func abc(a: String↓ ,b: String) { }"),
+            Example("func abc(a: String↓ ,b: String↓ ,c: String↓ ,d: String) { }"),
+            Example("abc(a: \"string\"↓,b: \"string\""),
+            Example("enum a { case a↓ ,b }"),
+            Example("let result = plus(\n    first: 3↓ , // #683\n    second: 4\n)\n")
         ],
         corrections: [
-            "func abc(a: String↓,b: String) {}\n": "func abc(a: String, b: String) {}\n",
-            "abc(a: \"string\"↓,b: \"string\"\n": "abc(a: \"string\", b: \"string\"\n",
-            "abc(a: \"string\"↓  ,  b: \"string\"\n": "abc(a: \"string\", b: \"string\"\n",
-            "enum a { case a↓  ,b }\n": "enum a { case a, b }\n",
-            "let a = [1↓,1]\nlet b = 1\nf(1, b)\n": "let a = [1, 1]\nlet b = 1\nf(1, b)\n",
-            "let a = [1↓,1↓,1↓,1]\n": "let a = [1, 1, 1, 1]\n"
+            Example("func abc(a: String↓,b: String) {}\n"): Example("func abc(a: String, b: String) {}\n"),
+            Example("abc(a: \"string\"↓,b: \"string\"\n"): Example("abc(a: \"string\", b: \"string\"\n"),
+            Example("abc(a: \"string\"↓  ,  b: \"string\"\n"): Example("abc(a: \"string\", b: \"string\"\n"),
+            Example("enum a { case a↓  ,b }\n"): Example("enum a { case a, b }\n"),
+            Example("let a = [1↓,1]\nlet b = 1\nf(1, b)\n"): Example("let a = [1, 1]\nlet b = 1\nf(1, b)\n"),
+            Example("let a = [1↓,1↓,1↓,1]\n"): Example("let a = [1, 1, 1, 1]\n")
         ]
     )
 
     public func validate(file: SwiftLintFile) -> [StyleViolation] {
         return violationRanges(in: file).map {
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severity,
                            location: Location(file: file, characterOffset: $0.location))
         }
@@ -76,7 +76,7 @@ public struct CommaRule: SubstitutionCorrectableRule, ConfigurationProviderRule,
         let contents = file.stringView
         let range = contents.range
         let syntaxMap = file.syntaxMap
-        return CommaRule.regularExpression
+        return Self.regularExpression
             .matches(in: contents, options: [], range: range)
             .compactMap { match -> NSRange? in
                 if match.numberOfRanges != 5 { return nil } // Number of Groups in regexp
@@ -94,7 +94,7 @@ public struct CommaRule: SubstitutionCorrectableRule, ConfigurationProviderRule,
 
                 // first captured range won't match kinds if it is not comment neither string
                 let firstCaptureIsCommentOrString = syntaxMap.kinds(inByteRange: matchByteFirstRange)
-                    .contains(where: CommaRule.excludingSyntaxKindsForFirstCapture.contains)
+                    .contains(where: Self.excludingSyntaxKindsForFirstCapture.contains)
                 if firstCaptureIsCommentOrString {
                     return nil
                 }
@@ -113,7 +113,7 @@ public struct CommaRule: SubstitutionCorrectableRule, ConfigurationProviderRule,
 
                 // second captured range won't match kinds if it is not comment
                 let secondCaptureIsComment = syntaxMap.kinds(inByteRange: matchByteSecondRange)
-                    .contains(where: CommaRule.excludingSyntaxKindsForSecondCapture.contains)
+                    .contains(where: Self.excludingSyntaxKindsForSecondCapture.contains)
                 if secondCaptureIsComment {
                     return nil
                 }

@@ -35,76 +35,76 @@ public struct UntypedErrorInCatchRule: OptInRule, ConfigurationProviderRule, Aut
         description: "Catch statements should not declare error variables without type casting.",
         kind: .idiomatic,
         nonTriggeringExamples: [
-            """
+            Example("""
             do {
               try foo()
             } catch {}
-            """,
-            """
+            """),
+            Example("""
             do {
               try foo()
             } catch Error.invalidOperation {
             } catch {}
-            """,
-            """
+            """),
+            Example("""
             do {
               try foo()
             } catch let error as MyError {
             } catch {}
-            """,
-            """
+            """),
+            Example("""
             do {
               try foo()
             } catch var error as MyError {
             } catch {}
-            """
+            """)
         ],
         triggeringExamples: [
-            """
+            Example("""
             do {
               try foo()
             } ↓catch var error {}
-            """,
-            """
+            """),
+            Example("""
             do {
               try foo()
             } ↓catch let error {}
-            """,
-            """
+            """),
+            Example("""
             do {
               try foo()
             } ↓catch let someError {}
-            """,
-            """
+            """),
+            Example("""
             do {
               try foo()
             } ↓catch var someError {}
-            """,
-            """
+            """),
+            Example("""
             do {
               try foo()
             } ↓catch let e {}
-            """,
-            """
+            """),
+            Example("""
             do {
               try foo()
             } ↓catch(let error) {}
-            """,
-            """
+            """),
+            Example("""
             do {
               try foo()
             } ↓catch (let error) {}
-            """
+            """)
         ],
         corrections: [
-            "do {\n    try foo() \n} ↓catch let error {}": "do {\n    try foo() \n} catch {}",
-            "do {\n    try foo() \n} ↓catch(let error) {}": "do {\n    try foo() \n} catch {}",
-            "do {\n    try foo() \n} ↓catch (let error) {}": "do {\n    try foo() \n} catch {}"
+            Example("do {\n    try foo() \n} ↓catch let error {}"): Example("do {\n    try foo() \n} catch {}"),
+            Example("do {\n    try foo() \n} ↓catch(let error) {}"): Example("do {\n    try foo() \n} catch {}"),
+            Example("do {\n    try foo() \n} ↓catch (let error) {}"): Example("do {\n    try foo() \n} catch {}")
         ])
 
     public func validate(file: SwiftLintFile) -> [StyleViolation] {
         return violationRanges(in: file).map {
-            return StyleViolation(ruleDescription: type(of: self).description,
+            return StyleViolation(ruleDescription: Self.description,
                                   severity: configuration.severity,
                                   location: Location(file: file, characterOffset: $0.location),
                                   reason: configuration.consoleDescription)
@@ -112,7 +112,7 @@ public struct UntypedErrorInCatchRule: OptInRule, ConfigurationProviderRule, Aut
     }
 
     fileprivate func violationRanges(in file: SwiftLintFile) -> [NSRange] {
-        return file.match(pattern: type(of: self).regularExpression,
+        return file.match(pattern: Self.regularExpression,
                           with: [.keyword, .keyword, .identifier])
     }
 }
@@ -124,7 +124,7 @@ extension UntypedErrorInCatchRule: CorrectableRule {
         if matches.isEmpty { return [] }
 
         var contents = file.contents.bridge()
-        let description = type(of: self).description
+        let description = Self.description
         var corrections = [Correction]()
 
         for range in matches.reversed() where contents.substring(with: range).contains("let error") {

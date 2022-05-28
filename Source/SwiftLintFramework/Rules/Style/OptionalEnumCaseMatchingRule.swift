@@ -10,129 +10,139 @@ public struct OptionalEnumCaseMatchingRule: SubstitutionCorrectableASTRule, Conf
     public static let description = RuleDescription(
         identifier: "optional_enum_case_matching",
         name: "Optional Enum Case Match",
-        description: "Matching an enum case against an optional enum without '?' is supported on Swift 5.1 and above. ",
+        description: "Matching an enum case against an optional enum without '?' is supported on Swift 5.1 and above.",
         kind: .style,
         minSwiftVersion: .fiveDotOne,
         nonTriggeringExamples: [
-            """
+            Example("""
             switch foo {
              case .bar: break
              case .baz: break
              default: break
             }
-            """,
-            """
+            """),
+            Example("""
             switch foo {
              case (.bar, .baz): break
              case (.bar, _): break
              case (_, .baz): break
              default: break
             }
-            """
+            """),
+            Example("""
+            switch (x, y) {
+            case (.c, _?):
+                break
+            case (.c, nil):
+                break
+            case (_, _):
+                break
+            }
+            """)
         ],
         triggeringExamples: [
-            """
+            Example("""
             switch foo {
              case .bar↓?: break
              case .baz: break
              default: break
             }
-            """,
-            """
+            """),
+            Example("""
             switch foo {
              case Foo.bar↓?: break
              case .baz: break
              default: break
             }
-            """,
-            """
+            """),
+            Example("""
             switch foo {
              case .bar↓?, .baz↓?: break
              default: break
             }
-            """,
-            """
+            """),
+            Example("""
             switch foo {
              case .bar↓? where x > 1: break
              case .baz: break
              default: break
             }
-            """,
-            """
+            """),
+            Example("""
             switch foo {
              case (.bar↓?, .baz↓?): break
              case (.bar↓?, _): break
              case (_, .bar↓?): break
              default: break
             }
-            """
+            """)
         ],
         corrections: [
-            """
+            Example("""
             switch foo {
              case .bar↓?: break
              case .baz: break
              default: break
             }
-            """: """
+            """): Example("""
             switch foo {
              case .bar: break
              case .baz: break
              default: break
             }
-            """,
-            """
+            """),
+            Example("""
             switch foo {
              case Foo.bar↓?: break
              case .baz: break
              default: break
             }
-            """: """
+            """): Example("""
             switch foo {
              case Foo.bar: break
              case .baz: break
              default: break
             }
-            """,
-            """
+            """),
+            Example("""
             switch foo {
              case .bar↓?, .baz↓?: break
              default: break
             }
-            """: """
+            """): Example("""
             switch foo {
              case .bar, .baz: break
              default: break
             }
-            """,
-            """
+            """),
+            Example("""
             switch foo {
              case .bar↓? where x > 1: break
              case .baz: break
              default: break
             }
-            """: """
+            """): Example("""
             switch foo {
              case .bar where x > 1: break
              case .baz: break
              default: break
             }
-            """,
-            """
+            """),
+            Example("""
             switch foo {
              case (.bar↓?, .baz↓?): break
              case (.bar↓?, _): break
              case (_, .bar↓?): break
              default: break
             }
-            """: """
+            """): Example("""
             switch foo {
              case (.bar, .baz): break
              case (.bar, _): break
              case (_, .bar): break
              default: break
             }
-            """
+            """)
         ]
     )
 
@@ -142,7 +152,7 @@ public struct OptionalEnumCaseMatchingRule: SubstitutionCorrectableASTRule, Conf
                          kind: StatementKind,
                          dictionary: SourceKittenDictionary) -> [StyleViolation] {
         return violationRanges(in: file, kind: kind, dictionary: dictionary).map {
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severity,
                            location: Location(file: file, characterOffset: $0.location))
         }
@@ -157,7 +167,7 @@ public struct OptionalEnumCaseMatchingRule: SubstitutionCorrectableASTRule, Conf
     public func violationRanges(in file: SwiftLintFile,
                                 kind: StatementKind,
                                 dictionary: SourceKittenDictionary) -> [NSRange] {
-        guard SwiftVersion.current >= type(of: self).description.minSwiftVersion, kind == .case else {
+        guard kind == .case else {
             return []
         }
 
@@ -165,26 +175,29 @@ public struct OptionalEnumCaseMatchingRule: SubstitutionCorrectableASTRule, Conf
         return dictionary.elements
             .filter { $0.kind == "source.lang.swift.structure.elem.pattern" }
             .flatMap { dictionary -> [NSRange] in
-                guard let offset = dictionary.offset, let length = dictionary.length else {
+                guard let byteRange = dictionary.byteRange else {
                     return []
                 }
 
-                let pattern = contents.substringWithByteRange(start: offset, length: length)
+                let pattern = contents.substringWithByteRange(byteRange)
                 let tupleCommaByteOffsets = pattern?.tupleCommaByteOffsets ?? []
 
-                let tokensToCheck = (tupleCommaByteOffsets + [length]).compactMap { length in
+                let tokensToCheck = (tupleCommaByteOffsets + [byteRange.length]).compactMap { length in
                     return file.syntaxMap
-                        .tokens(inByteRange: NSRange(location: offset, length: length))
+                        .tokens(inByteRange: ByteRange(location: byteRange.location, length: length))
                         .prefix { $0.kind != .keyword || file.isTokenUnderscoreKeyword($0) }
                         .last
                 }
 
                 return tokensToCheck.compactMap { tokenToCheck in
-                    let questionMarkByteOffset = tokenToCheck.length + tokenToCheck.offset
-                    guard contents.substringWithByteRange(start: questionMarkByteOffset, length: 1) == "?" else {
+                    guard !file.isTokenUnderscoreKeyword(tokenToCheck) else {
                         return nil
                     }
-                    return contents.byteRangeToNSRange(start: questionMarkByteOffset, length: 1)
+                    let questionMarkByteRange = ByteRange(location: tokenToCheck.range.upperBound, length: 1)
+                    guard contents.substringWithByteRange(questionMarkByteRange) == "?" else {
+                        return nil
+                    }
+                    return contents.byteRangeToNSRange(questionMarkByteRange)
                 }
             }
     }
@@ -203,7 +216,7 @@ private extension String {
         return first == "(" && last == ")" && contains(",")
     }
 
-    var tupleCommaByteOffsets: [Int] {
+    var tupleCommaByteOffsets: [ByteCount] {
         guard isTuple else {
             return []
         }

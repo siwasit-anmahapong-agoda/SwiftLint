@@ -1,6 +1,6 @@
 # SwiftLint
 
-SwiftLint는 스위프트 스타일 및 컨벤션을 강제하기 위한 도구로, [GitHub 스위프트 스타일 가이드](https://github.com/github/swift-style-guide)에 대략적인 기반을 두고 있습니다.
+SwiftLint는 스위프트 스타일 및 컨벤션을 강제하기 위한 도구로, [Ray Wenderlich 스위프트 스타일 가이드](https://github.com/raywenderlich/swift-style-guide)에 대략적인 기반을 두고 있습니다.
 
 SwiftLint는 좀 더 정확한 결과를 위해 [Clang](http://clang.llvm.org)과 [SourceKit](http://www.jpsim.com/uncovering-sourcekit)에 연결하여 소스 파일의 [AST](http://clang.llvm.org/docs/IntroductionToTheClangAST.html) 표현을 사용합니다.
 
@@ -44,7 +44,7 @@ $ mint install realm/SwiftLint
 
 ### 소스를 직접 컴파일하는 경우:
 
-본 프로젝트를 클론해서 빌드할 수도 있습니다. `git submodule update --init --recursive; make install` 명령을 사용합니다. (Xcode 10.2 이후 버전)
+본 프로젝트를 클론해서 빌드할 수도 있습니다. `make install` 명령을 사용합니다. (Xcode 12.5 이후 버전)
 
 ## 사용 방법
 
@@ -95,7 +95,7 @@ fastlane 과정에서 SwiftLint를 사용하려면 [공식적인 fastlane 액션
 ```ruby
 swiftlint(
   mode: :lint,                            # SwiftLint 모드: :lint (디폴트) 아니면 :autocorrect
-  executable: "Pods/SwiftLint/swiftlint", # SwiftLint 바이너리 경로 (선택 가능). CocoaPods를 사용해서 설치한 경우는 이 옾션이 중요합니다
+  executable: "Pods/SwiftLint/swiftlint", # SwiftLint 바이너리 경로 (선택 가능). CocoaPods를 사용해서 설치한 경우는 이 옵션이 중요합니다
   output_file: "swiftlint.result.json",   # 결과 파일의 경로 (선택 가능)
   reporter: "json",                       # 보고 유형 (선택 가능)
   config_file: ".swiftlint-ci.yml",       # 설정 파일의 경로 (선택 가능)
@@ -119,13 +119,13 @@ Available commands:
 스위프트 파일이 있는 디렉토리에서 `swiftlint`를 실행합니다. 디렉토리는 재귀적으로 탐색됩니다.
 
 `lint`나 `autocorrect`를 사용할 때 여러 파일(예를 들면, [`ExtraBuildPhase`](https://github.com/norio-nomura/ExtraBuildPhase) 플러그인에 의해 Xcode가 변경한 파일들 혹은 `git ls-files -m` 명령으로 인해 작업 트리에서 변경된 파일들)을 지정하려면 `--use-script-input-files` 옵션을 넘기고 다음 인스턴스 변수들을 설정하면 됩니다. `SCRIPT_INPUT_FILE_COUNT` and
-`SCRIPT_INPUT_FILE_0`, `SCRIPT_INPUT_FILE_1`...`SCRIPT_INPUT_FILE_{SCRIPT_INPUT_FILE_COUNT}`
+`SCRIPT_INPUT_FILE_0`, `SCRIPT_INPUT_FILE_1`...`SCRIPT_INPUT_FILE_{SCRIPT_INPUT_FILE_COUNT - 1}`
 
 이는 [Xcode의 커스텀 스크립트 단계](http://indiestack.com/2014/12/speeding-up-custom-script-phases/)에 입력 파일로 환경 변수를 지정하는 것과 동일합니다.
 
 ### 스위프트 여러 버전에 대한 대응
 
-SwiftLint는 SourceKit에 연결되어 있으므로 스위프트 언어가 변화하더라도 이상없이 동작할 수 있습니다.
+SwiftLint는 SourceKit에 연결되어 있으므로 스위프트 언어가 변화하더라도 이상 없이 동작할 수 있습니다.
 
 이는 전체 스위프트 컴파일러가 포함되지 않아도 되므로 SwiftLint가 간결하게 유지될 수 있습니다. SwiftLint는 데스크탑에 이미 설치되어 있는 공식 스위프트 컴파일러와 통신하기만 하면 됩니다.
 
@@ -169,11 +169,11 @@ SwiftLint에는 75개가 넘는 룰들이 있고, 스위프트 커뮤니티(바�
 
 ### 코드에서 룰 비활성화하기
 
-소스 파일에서 아래 형식의 주석을 사용하면 룰을 비활성화 할 수 있습니다.
+소스 파일에서 아래 형식의 주석을 사용하면 룰을 비활성화할 수 있습니다.
 
 `// swiftlint:disable <룰1> [<룰2> <룰3>...]`
 
-비활성화 된 룰은 해당 파일의 마지막까지 적용되거나, 활성화 주석이 나타날 때까지 적용됩니다.
+비활성화된 룰은 해당 파일의 마지막까지 적용되거나, 활성화 주석이 나타날 때까지 적용됩니다.
 
 `// swiftlint:enable <룰1> [<룰2> <룰3>...]`
 
@@ -209,7 +209,7 @@ SwiftLint가 실행될 디렉토리에 `.swiftlint.yml` 파일을 추가해서 S
 
 * `disabled_rules`: 기본 활성화된 룰 중에 비활성화할 룰들을 지정합니다.
 * `opt_in_rules`: 기본 룰이 아닌 룰들을 활성화합니다.
-* `whitelist_rules`: 지정한 룰들만 활성화되도록 화이트리스트로 지정합니다. `disabled_rules` 및 `opt_in_rules`과는 같이 사용할 수 없습니다.
+* `only_rules`: 지정한 룰들만 활성화되도록 화이트리스트로 지정합니다. `disabled_rules` 및 `opt_in_rules`과는 같이 사용할 수 없습니다.
 
 ```yaml
 disabled_rules: # 실행에서 제외할 룰 식별자들
@@ -258,7 +258,7 @@ identifier_name:
     - id
     - URL
     - GlobalAPIKey
-reporter: "xcode" # 보고 유형 (xcode, json, csv, checkstyle, junit, html, emoji, markdown)
+reporter: "xcode" # 보고 유형 (xcode, json, csv, codeclimate, checkstyle, junit, html, emoji, sonarqube, markdown, github-actions-logging)
 ```
 
 #### 커스텀 룰 정의
@@ -270,14 +270,14 @@ custom_rules:
   pirates_beat_ninjas: # 룰 식별자
     included: ".*.swift" # 린트 실행시 포함할 경로를 정의하는 정규표현식. 선택 가능.
     name: "Pirates Beat Ninjas" # 룰 이름. 선택 가능.
-    regex: "([n,N]inja)" # 패턴 매칭
+    regex: "([nN]inja)" # 패턴 매칭
     match_kinds: # 매칭할 SyntaxKinds. 선택 가능.
       - comment
       - identifier
     message: "Pirates are better than ninjas." # 위반 메시지. 선택 가능.
     severity: error # 위반 수준. 선택 가능.
   no_hiding_in_strings:
-    regex: "([n,N]inja)"
+    regex: "([nN]inja)"
     match_kinds: string
 ```
 
@@ -285,7 +285,7 @@ custom_rules:
 
 ![](assets/custom-rule.png)
 
-하나 이상의 `match_kinds`를 사용해서 매칭된 결과를 필터링 할 수 있습니다. 이 목록에 들어있지 않은 구문 유형이 포함된 결과는 매칭에서 제외됩니다. 사용 가능한 모든 구문 유형은 다음과 같습니다.
+하나 이상의 `match_kinds`를 사용해서 매칭된 결과를 필터링할 수 있습니다. 이 목록에 들어있지 않은 구문 유형이 포함된 결과는 매칭에서 제외됩니다. 사용 가능한 모든 구문 유형은 다음과 같습니다.
 
 * argument
 * attribute.builtin
@@ -317,7 +317,7 @@ SwiftLint는 설정 파일을 중첩되게 구성해서 린트 과정을 더욱 
 
 ### 자동 수정
 
-SwiftLint는 일부 위반 사항들을 자동으로 수정할 수 있습니다. 디스크상의 파일들은 수정된 버전으로 덮어 쓰여지게 됩니다.
+SwiftLint는 일부 위반 사항들을 자동으로 수정할 수 있습니다. 디스크 상의 파일들은 수정된 버전으로 덮어 쓰여지게 됩니다.
 
 `swiftlint autocorrect`를 실행하기 전에 파일들을 백업해주세요. 그렇지 않으면 중요한 데이터가 유실될 수도 있습니다.
 

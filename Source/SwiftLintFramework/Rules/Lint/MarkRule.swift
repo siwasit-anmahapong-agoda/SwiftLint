@@ -12,59 +12,61 @@ public struct MarkRule: CorrectableRule, ConfigurationProviderRule {
         description: "MARK comment should be in valid format. e.g. '// MARK: ...' or '// MARK: - ...'",
         kind: .lint,
         nonTriggeringExamples: [
-            "// MARK: good\n",
-            "// MARK: - good\n",
-            "// MARK: -\n",
-            "// BOOKMARK",
-            "//BOOKMARK",
-            "// BOOKMARKS"
+            Example("// MARK: good\n"),
+            Example("// MARK: - good\n"),
+            Example("// MARK: -\n"),
+            Example("// BOOKMARK"),
+            Example("//BOOKMARK"),
+            Example("// BOOKMARKS"),
+            issue1749Example
         ],
         triggeringExamples: [
-            "↓//MARK: bad",
-            "↓// MARK:bad",
-            "↓//MARK:bad",
-            "↓//  MARK: bad",
-            "↓// MARK:  bad",
-            "↓// MARK: -bad",
-            "↓// MARK:- bad",
-            "↓// MARK:-bad",
-            "↓//MARK: - bad",
-            "↓//MARK:- bad",
-            "↓//MARK: -bad",
-            "↓//MARK:-bad",
-            "↓//Mark: bad",
-            "↓// Mark: bad",
-            "↓// MARK bad",
-            "↓//MARK bad",
-            "↓// MARK - bad",
-            "↓//MARK : bad",
-            "↓// MARKL:",
-            "↓// MARKR ",
-            "↓// MARKK -",
-            "↓/// MARK:",
-            "↓/// MARK bad",
+            Example("↓//MARK: bad"),
+            Example("↓// MARK:bad"),
+            Example("↓//MARK:bad"),
+            Example("↓//  MARK: bad"),
+            Example("↓// MARK:  bad"),
+            Example("↓// MARK: -bad"),
+            Example("↓// MARK:- bad"),
+            Example("↓// MARK:-bad"),
+            Example("↓//MARK: - bad"),
+            Example("↓//MARK:- bad"),
+            Example("↓//MARK: -bad"),
+            Example("↓//MARK:-bad"),
+            Example("↓//Mark: bad"),
+            Example("↓// Mark: bad"),
+            Example("↓// MARK bad"),
+            Example("↓//MARK bad"),
+            Example("↓// MARK - bad"),
+            Example("↓//MARK : bad"),
+            Example("↓// MARKL:"),
+            Example("↓// MARKR "),
+            Example("↓// MARKK -"),
+            Example("↓/// MARK:"),
+            Example("↓/// MARK bad"),
             issue1029Example
         ],
         corrections: [
-            "↓//MARK: comment": "// MARK: comment",
-            "↓// MARK:  comment": "// MARK: comment",
-            "↓// MARK:comment": "// MARK: comment",
-            "↓//  MARK: comment": "// MARK: comment",
-            "↓//MARK: - comment": "// MARK: - comment",
-            "↓// MARK:- comment": "// MARK: - comment",
-            "↓// MARK: -comment": "// MARK: - comment",
-            "↓// MARK: -  comment": "// MARK: - comment",
-            "↓// Mark: comment": "// MARK: comment",
-            "↓// Mark: - comment": "// MARK: - comment",
-            "↓// MARK - comment": "// MARK: - comment",
-            "↓// MARK : comment": "// MARK: comment",
-            "↓// MARKL:": "// MARK:",
-            "↓// MARKL: -": "// MARK: -",
-            "↓// MARKK ": "// MARK: ",
-            "↓// MARKK -": "// MARK: -",
-            "↓/// MARK:": "// MARK:",
-            "↓/// MARK comment": "// MARK: comment",
-            issue1029Example: issue1029Correction
+            Example("↓//MARK: comment"): Example("// MARK: comment"),
+            Example("↓// MARK:  comment"): Example("// MARK: comment"),
+            Example("↓// MARK:comment"): Example("// MARK: comment"),
+            Example("↓//  MARK: comment"): Example("// MARK: comment"),
+            Example("↓//MARK: - comment"): Example("// MARK: - comment"),
+            Example("↓// MARK:- comment"): Example("// MARK: - comment"),
+            Example("↓// MARK: -comment"): Example("// MARK: - comment"),
+            Example("↓// MARK: -  comment"): Example("// MARK: - comment"),
+            Example("↓// Mark: comment"): Example("// MARK: comment"),
+            Example("↓// Mark: - comment"): Example("// MARK: - comment"),
+            Example("↓// MARK - comment"): Example("// MARK: - comment"),
+            Example("↓// MARK : comment"): Example("// MARK: comment"),
+            Example("↓// MARKL:"): Example("// MARK:"),
+            Example("↓// MARKL: -"): Example("// MARK: -"),
+            Example("↓// MARKK "): Example("// MARK: "),
+            Example("↓// MARKK -"): Example("// MARK: -"),
+            Example("↓/// MARK:"): Example("// MARK:"),
+            Example("↓/// MARK comment"): Example("// MARK: comment"),
+            issue1029Example: issue1029Correction,
+            issue1749Example: issue1749Correction
         ]
     )
 
@@ -102,7 +104,7 @@ public struct MarkRule: CorrectableRule, ConfigurationProviderRule {
 
     public func validate(file: SwiftLintFile) -> [StyleViolation] {
         return violationRanges(in: file, matching: pattern).map {
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severity,
                            location: Location(file: file, characterOffset: $0.location))
         }
@@ -168,7 +170,7 @@ public struct MarkRule: CorrectableRule, ConfigurationProviderRule {
         if matches.isEmpty { return [] }
 
         var nsstring = file.contents.bridge()
-        let description = type(of: self).description
+        let description = Self.description
         var corrections = [Correction]()
         for var range in matches.reversed() {
             if keepLastChar {
@@ -183,30 +185,59 @@ public struct MarkRule: CorrectableRule, ConfigurationProviderRule {
     }
 
     private func violationRanges(in file: SwiftLintFile, matching pattern: String) -> [NSRange] {
-        return file.rangesAndTokens(matching: pattern).filter { _, syntaxTokens in
-            guard let syntaxKind = syntaxTokens.first?.kind else {
+        return file.rangesAndTokens(matching: pattern).filter { matchRange, syntaxTokens in
+            guard
+                let syntaxToken = syntaxTokens.first,
+                let syntaxKind = syntaxToken.kind,
+                SyntaxKind.commentKinds.contains(syntaxKind),
+                case let tokenLocation = Location(file: file, byteOffset: syntaxToken.offset),
+                case let matchLocation = Location(file: file, characterOffset: matchRange.location),
+                // Skip MARKs that are part of a multiline comment
+                tokenLocation.line == matchLocation.line
+            else {
                 return false
             }
-            return !syntaxTokens.isEmpty && SyntaxKind.commentKinds.contains(syntaxKind)
+            return true
         }.compactMap { range, syntaxTokens in
-            let identifierRange = file.stringView
-                .byteRangeToNSRange(start: syntaxTokens[0].offset, length: 0)
+            let byteRange = ByteRange(location: syntaxTokens[0].offset, length: 0)
+            let identifierRange = file.stringView.byteRangeToNSRange(byteRange)
             return identifierRange.map { NSUnionRange($0, range) }
         }
     }
 }
 
-private let issue1029Example = "↓//MARK:- Top-Level bad mark\n" +
-                               "↓//MARK:- Another bad mark\n" +
-                               "struct MarkTest {}\n" +
-                               "↓// MARK:- Bad mark\n" +
-                               "extension MarkTest {}\n"
+private let issue1029Example = Example("""
+    ↓//MARK:- Top-Level bad mark
+    ↓//MARK:- Another bad mark
+    struct MarkTest {}
+    ↓// MARK:- Bad mark
+    extension MarkTest {}
+    """)
 
-private let issue1029Correction = "// MARK: - Top-Level bad mark\n" +
-                                 "// MARK: - Another bad mark\n" +
-                                 "struct MarkTest {}\n" +
-                                 "// MARK: - Bad mark\n" +
-                                 "extension MarkTest {}\n"
+private let issue1029Correction = Example("""
+    // MARK: - Top-Level bad mark
+    // MARK: - Another bad mark
+    struct MarkTest {}
+    // MARK: - Bad mark
+    extension MarkTest {}
+    """)
+
+// https://github.com/realm/SwiftLint/issues/1749
+// https://github.com/realm/SwiftLint/issues/3841
+private let issue1749Example = Example(
+    """
+    /*
+    func test1() {
+    }
+    //MARK: mark
+    func test2() {
+    }
+    */
+    """
+)
+
+// This example should not trigger changes
+private let issue1749Correction = issue1749Example
 
 // These need to be at the bottom of the file to work around https://bugs.swift.org/browse/SR-10486
 

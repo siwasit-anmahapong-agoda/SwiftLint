@@ -5,7 +5,8 @@ public struct IdentifierNameRule: ASTRule, ConfigurationProviderRule {
     public var configuration = NameConfiguration(minLengthWarning: 3,
                                                  minLengthError: 2,
                                                  maxLengthWarning: 40,
-                                                 maxLengthError: 60)
+                                                 maxLengthError: 60,
+                                                 excluded: ["id"])
 
     public init() {}
 
@@ -23,19 +24,22 @@ public struct IdentifierNameRule: ASTRule, ConfigurationProviderRule {
         deprecatedAliases: ["variable_name"]
     )
 
-    public func validate(file: SwiftLintFile, kind: SwiftDeclarationKind,
-                         dictionary: SourceKittenDictionary) -> [StyleViolation] {
+    public func validate(
+        file: SwiftLintFile,
+        kind: SwiftDeclarationKind,
+        dictionary: SourceKittenDictionary
+    ) -> [StyleViolation] {
         guard !dictionary.enclosedSwiftAttributes.contains(.override) else {
             return []
         }
 
         return validateName(dictionary: dictionary, kind: kind).map { name, offset in
-            guard !configuration.excluded.contains(name) else {
+            guard !configuration.excluded.contains(name), let firstCharacter = name.first else {
                 return []
             }
 
             let isFunction = SwiftDeclarationKind.functionKinds.contains(kind)
-            let description = Swift.type(of: self).description
+            let description = Self.description
 
             let type = self.type(for: kind)
             if !isFunction {
@@ -55,7 +59,7 @@ public struct IdentifierNameRule: ASTRule, ConfigurationProviderRule {
                         "\(configuration.minLengthThreshold) and " +
                         "\(configuration.maxLengthThreshold) characters long: '\(name)'"
                     return [
-                        StyleViolation(ruleDescription: Swift.type(of: self).description,
+                        StyleViolation(ruleDescription: Self.description,
                                        severity: severity,
                                        location: Location(file: file, byteOffset: offset),
                                        reason: reason)
@@ -63,6 +67,11 @@ public struct IdentifierNameRule: ASTRule, ConfigurationProviderRule {
                 }
             }
 
+            let firstCharacterIsAllowed = configuration.allowedSymbols
+                .isSuperset(of: CharacterSet(charactersIn: String(firstCharacter)))
+            guard !firstCharacterIsAllowed else {
+                return []
+            }
             let requiresCaseCheck = configuration.validatesStartWithLowercase || isFunction
             if requiresCaseCheck &&
                 kind != .varStatic && name.isViolatingCase && !name.isOperator {
@@ -79,19 +88,22 @@ public struct IdentifierNameRule: ASTRule, ConfigurationProviderRule {
         } ?? []
     }
 
-    private func validateName(dictionary: SourceKittenDictionary,
-                              kind: SwiftDeclarationKind) -> (name: String, offset: Int)? {
-        guard var name = dictionary.name,
+    private func validateName(
+        dictionary: SourceKittenDictionary,
+        kind: SwiftDeclarationKind
+    ) -> (name: String, offset: ByteCount)? {
+        guard
+            var name = dictionary.name,
             let offset = dictionary.offset,
             kinds.contains(kind),
-            !name.hasPrefix("$") else {
-                return nil
-        }
+            !name.hasPrefix("$")
+        else { return nil }
 
-        if kind == .enumelement,
-            SwiftVersion.current > .fourDotOne,
+        if
+            kind == .enumelement,
             let parenIndex = name.firstIndex(of: "("),
-            parenIndex > name.startIndex {
+            parenIndex > name.startIndex
+        {
             let index = name.index(before: parenIndex)
             name = String(name[...index])
         }

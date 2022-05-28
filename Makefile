@@ -2,21 +2,17 @@ TEMPORARY_FOLDER?=/tmp/SwiftLint.dst
 PREFIX?=/usr/local
 BUILD_TOOL?=xcodebuild
 
-XCODEFLAGS=-workspace 'SwiftLint.xcworkspace' \
-	-scheme 'swiftlint' \
+XCODEFLAGS=-scheme 'swiftlint' \
 	DSTROOT=$(TEMPORARY_FOLDER) \
 	OTHER_LDFLAGS=-Wl,-headerpad_max_install_names
 
-SWIFT_BUILD_FLAGS=--configuration release
+SWIFT_BUILD_FLAGS=--configuration release -Xlinker -dead_strip
 UNAME=$(shell uname)
-ifeq ($(UNAME), Darwin)
-USE_SWIFT_STATIC_STDLIB:=$(shell test -d $$(dirname $$(xcrun --find swift))/../lib/swift_static/macosx && echo yes)
-ifeq ($(USE_SWIFT_STATIC_STDLIB), yes)
-SWIFT_BUILD_FLAGS+= -Xswiftc -static-stdlib
-endif
-endif
 
-SWIFTLINT_EXECUTABLE=$(shell swift build $(SWIFT_BUILD_FLAGS) --show-bin-path)/swiftlint
+SWIFTLINT_EXECUTABLE_X86=$(shell swift build $(SWIFT_BUILD_FLAGS) --arch x86_64 --show-bin-path)/swiftlint
+SWIFTLINT_EXECUTABLE_ARM64=$(shell swift build $(SWIFT_BUILD_FLAGS) --arch arm64 --show-bin-path)/swiftlint
+SWIFTLINT_EXECUTABLE_PARENT=.build/universal
+SWIFTLINT_EXECUTABLE=$(SWIFTLINT_EXECUTABLE_PARENT)/swiftlint
 
 TSAN_LIB=$(subst bin/swift,lib/swift/clang/lib/darwin/libclang_rt.tsan_osx_dynamic.dylib,$(shell xcrun --find swift))
 TSAN_SWIFT_BUILD_FLAGS=-Xswiftc -sanitize=thread
@@ -29,41 +25,31 @@ LICENSE_PATH="$(shell pwd)/LICENSE"
 
 OUTPUT_PACKAGE=SwiftLint.pkg
 
-SWIFTLINT_PLIST=Source/swiftlint/Supporting Files/Info.plist
-SWIFTLINTFRAMEWORK_PLIST=Source/SwiftLintFramework/Supporting Files/Info.plist
+VERSION_STRING="$(shell ./script/get-version)"
 
-VERSION_STRING=$(shell /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$(SWIFTLINT_PLIST)")
-
-.PHONY: all bootstrap clean build install package test uninstall docs
+.PHONY: all clean build install package test uninstall docs
 
 all: build
 
-sourcery: Source/SwiftLintFramework/Models/MasterRuleList.swift Tests/SwiftLintFrameworkTests/AutomaticRuleTests.generated.swift Tests/LinuxMain.swift
+sourcery: Source/SwiftLintFramework/Models/PrimaryRuleList.swift Tests/SwiftLintFrameworkTests/AutomaticRuleTests.generated.swift
 
-Tests/LinuxMain.swift: Tests/*/*.swift .sourcery/LinuxMain.stencil
-	sourcery --sources Tests --exclude-sources Tests/SwiftLintFrameworkTests/Resources --templates .sourcery/LinuxMain.stencil --output .sourcery --force-parse generated
-	mv .sourcery/LinuxMain.generated.swift Tests/LinuxMain.swift
-
-Source/SwiftLintFramework/Models/MasterRuleList.swift: Source/SwiftLintFramework/Rules/**/*.swift .sourcery/MasterRuleList.stencil
-	sourcery --sources Source/SwiftLintFramework/Rules --templates .sourcery/MasterRuleList.stencil --output .sourcery
-	mv .sourcery/MasterRuleList.generated.swift Source/SwiftLintFramework/Models/MasterRuleList.swift
+Source/SwiftLintFramework/Models/PrimaryRuleList.swift: Source/SwiftLintFramework/Rules/**/*.swift .sourcery/PrimaryRuleList.stencil
+	sourcery --sources Source/SwiftLintFramework/Rules --templates .sourcery/PrimaryRuleList.stencil --output .sourcery
+	mv .sourcery/PrimaryRuleList.generated.swift Source/SwiftLintFramework/Models/PrimaryRuleList.swift
 
 Tests/SwiftLintFrameworkTests/AutomaticRuleTests.generated.swift: Source/SwiftLintFramework/Rules/**/*.swift .sourcery/AutomaticRuleTests.stencil
 	sourcery --sources Source/SwiftLintFramework/Rules --templates .sourcery/AutomaticRuleTests.stencil --output .sourcery
 	mv .sourcery/AutomaticRuleTests.generated.swift Tests/SwiftLintFrameworkTests/AutomaticRuleTests.generated.swift
 
-bootstrap:
-	script/bootstrap
-
-test: clean_xcode bootstrap
+test: clean_xcode
 	$(BUILD_TOOL) $(XCODEFLAGS) test
 
 test_tsan:
 	swift build --build-tests $(TSAN_SWIFT_BUILD_FLAGS)
 	DYLD_INSERT_LIBRARIES=$(TSAN_LIB) $(TSAN_XCTEST) $(TSAN_TEST_BUNDLE)
 
-write_xcodebuild_log: bootstrap
-	xcodebuild -workspace SwiftLint.xcworkspace -scheme swiftlint clean build-for-testing > xcodebuild.log
+write_xcodebuild_log:
+	xcodebuild -scheme swiftlint clean build-for-testing -destination "platform=macOS" > xcodebuild.log
 
 analyze: write_xcodebuild_log
 	swift run -c release swiftlint analyze --strict --compiler-log-path xcodebuild.log
@@ -80,8 +66,20 @@ clean:
 clean_xcode:
 	$(BUILD_TOOL) $(XCODEFLAGS) -configuration Test clean
 
-build:
-	swift build $(SWIFT_BUILD_FLAGS)
+build_x86_64:
+	swift build $(SWIFT_BUILD_FLAGS) --arch x86_64
+
+build_arm64:
+	swift build $(SWIFT_BUILD_FLAGS) --arch arm64
+
+build: clean build_x86_64 build_arm64
+	# Need to build for each arch independently to work around https://bugs.swift.org/browse/SR-15802
+	mkdir -p $(SWIFTLINT_EXECUTABLE_PARENT)
+	lipo -create -output \
+		"$(SWIFTLINT_EXECUTABLE)" \
+		"$(SWIFTLINT_EXECUTABLE_X86)" \
+		"$(SWIFTLINT_EXECUTABLE_ARM64)"
+	strip -rSTX "$(SWIFTLINT_EXECUTABLE)"
 
 build_with_disable_sandbox:
 	swift build --disable-sandbox $(SWIFT_BUILD_FLAGS)
@@ -107,25 +105,47 @@ portable_zip: installables
 	cp -f "$(LICENSE_PATH)" "$(TEMPORARY_FOLDER)"
 	(cd "$(TEMPORARY_FOLDER)"; zip -yr - "swiftlint" "LICENSE") > "./portable_swiftlint.zip"
 
-package: installables
+zip_linux: docker_image
+	$(eval TMP_FOLDER := $(shell mktemp -d))
+	docker run swiftlint cat /usr/bin/swiftlint > "$(TMP_FOLDER)/swiftlint"
+	chmod +x "$(TMP_FOLDER)/swiftlint"
+	cp -f "$(LICENSE_PATH)" "$(TMP_FOLDER)"
+	(cd "$(TMP_FOLDER)"; zip -yr - "swiftlint" "LICENSE") > "./swiftlint_linux.zip"
+
+zip_linux_release:
+	$(eval TMP_FOLDER := $(shell mktemp -d))
+	docker run ghcr.io/realm/swiftlint:$(VERSION_STRING) cat /usr/bin/swiftlint > "$(TMP_FOLDER)/swiftlint"
+	chmod +x "$(TMP_FOLDER)/swiftlint"
+	cp -f "$(LICENSE_PATH)" "$(TMP_FOLDER)"
+	(cd "$(TMP_FOLDER)"; zip -yr - "swiftlint" "LICENSE") > "./swiftlint_linux.zip"
+
+zip_linux_release_5_5:
+	$(eval TMP_FOLDER := $(shell mktemp -d))
+	docker run ghcr.io/realm/swiftlint:5.5-$(VERSION_STRING) cat /usr/bin/swiftlint > "$(TMP_FOLDER)/swiftlint"
+	chmod +x "$(TMP_FOLDER)/swiftlint"
+	cp -f "$(LICENSE_PATH)" "$(TMP_FOLDER)"
+	(cd "$(TMP_FOLDER)"; zip -yr - "swiftlint" "LICENSE") > "./swiftlint_linux_swift_5_5.zip"
+
+package: build
+	$(eval PACKAGE_ROOT := $(shell mktemp -d))
+	cp "$(SWIFTLINT_EXECUTABLE)" "$(PACKAGE_ROOT)"
 	pkgbuild \
 		--identifier "io.realm.swiftlint" \
-		--install-location "/" \
-		--root "$(TEMPORARY_FOLDER)" \
-		--version "$(VERSION_STRING)" \
+		--install-location "/usr/local/bin" \
+		--root "$(PACKAGE_ROOT)" \
+		--version $(VERSION_STRING) \
 		"$(OUTPUT_PACKAGE)"
 
-archive:
-	carthage build --no-skip-current --platform mac
-	carthage archive SwiftLintFramework
+release: package portable_zip zip_linux_release zip_linux_release_5_5
 
-release: package archive portable_zip
+docker_image:
+	docker build --platform linux/amd64 --force-rm --tag swiftlint .
 
 docker_test:
-	docker run -v `pwd`:`pwd` -w `pwd` --name swiftlint --rm norionomura/swift:51 swift test --parallel
+	docker run --platform linux/amd64 -v `pwd`:`pwd` -w `pwd` --name swiftlint --rm swift:5.5 swift test --parallel
 
 docker_htop:
-	docker run -it --rm --pid=container:swiftlint terencewestphal/htop || reset
+	docker run --platform linux/amd64 -it --rm --pid=container:swiftlint terencewestphal/htop || reset
 
 # https://irace.me/swift-profiling
 display_compilation_time:
@@ -133,8 +153,8 @@ display_compilation_time:
 
 publish:
 	brew update && brew bump-formula-pr --tag=$(shell git describe --tags) --revision=$(shell git rev-parse HEAD) swiftlint
-	pod trunk push SwiftLintFramework.podspec
-	pod trunk push SwiftLint.podspec
+	# Workaround for https://github.com/CocoaPods/CocoaPods/issues/11185
+	arch -arch x86_64 pod trunk push SwiftLint.podspec
 
 docs:
 	swift run swiftlint generate-docs
@@ -152,11 +172,9 @@ endif
 	$(eval NEW_VERSION := $(shell echo $(NEW_VERSION_AND_NAME) | sed 's/:.*//' ))
 	@sed -i '' 's/## Master/## $(NEW_VERSION_AND_NAME)/g' CHANGELOG.md
 	@sed 's/__VERSION__/$(NEW_VERSION)/g' script/Version.swift.template > Source/SwiftLintFramework/Models/Version.swift
-	@/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(NEW_VERSION)" "$(SWIFTLINTFRAMEWORK_PLIST)"
-	@/usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString $(NEW_VERSION)" "$(SWIFTLINT_PLIST)"
 	git commit -a -m "release $(NEW_VERSION)"
 	git tag -a $(NEW_VERSION) -m "$(NEW_VERSION_AND_NAME)"
-	git push origin master
+	git push origin HEAD
 	git push origin $(NEW_VERSION)
 
 %:

@@ -2,7 +2,7 @@ import Foundation
 import SourceKittenFramework
 
 public struct FileTypesOrderRule: ConfigurationProviderRule, OptInRule {
-    private typealias FileTypeOffset = (fileType: FileType, offset: Int)
+    private typealias FileTypeOffset = (fileType: FileType, offset: ByteCount)
 
     public var configuration = FileTypesOrderConfiguration()
 
@@ -32,6 +32,8 @@ public struct FileTypesOrderRule: ConfigurationProviderRule, OptInRule {
             mainTypeSubstructure: mainTypeSubstructure
         )
 
+        let previewProviderSubstructures = self.previewProviderSubstructures(in: file)
+
         let mainTypeOffset: [FileTypeOffset] = [(.mainType, mainTypeSubstuctureOffset)]
         let extensionOffsets: [FileTypeOffset] = extensionsSubstructures.compactMap { substructure in
             guard let offset = substructure.offset else { return nil }
@@ -43,11 +45,15 @@ public struct FileTypesOrderRule: ConfigurationProviderRule, OptInRule {
             return (.supportingType, offset)
         }
 
-        let orderedFileTypeOffsets = (mainTypeOffset + extensionOffsets + supportingTypeOffsets).sorted { lhs, rhs in
-            return lhs.offset < rhs.offset
+        let previewProviderOffsets: [FileTypeOffset] = previewProviderSubstructures.compactMap { substructure in
+            guard let offset = substructure.offset else { return nil }
+            return (.previewProvider, offset)
         }
 
-        var violations =  [StyleViolation]()
+        let allOffsets = mainTypeOffset + extensionOffsets + supportingTypeOffsets + previewProviderOffsets
+        let orderedFileTypeOffsets = allOffsets.sorted { lhs, rhs in lhs.offset < rhs.offset }
+
+        var violations = [StyleViolation]()
 
         var lastMatchingIndex = -1
         for expectedTypes in configuration.order {
@@ -72,7 +78,7 @@ public struct FileTypesOrderRule: ConfigurationProviderRule, OptInRule {
                 let article = ["a", "e", "i", "o", "u"].contains(fileType.substring(from: 0, length: 1)) ? "An" : "A"
 
                 let styleViolation = StyleViolation(
-                    ruleDescription: type(of: self).description,
+                    ruleDescription: Self.description,
                     severity: configuration.severityConfiguration.severity,
                     location: Location(file: file, byteOffset: fileTypeOffset.offset),
                     reason: "\(article) '\(fileType)' should not be placed amongst the file type(s) '\(expected)'."
@@ -106,9 +112,16 @@ public struct FileTypesOrderRule: ConfigurationProviderRule, OptInRule {
         let dict = file.structureDictionary
         return dict.substructure.filter { substructure in
             guard let declarationKind = substructure.declarationKind else { return false }
+            guard !substructure.inheritedTypes.contains("PreviewProvider") else { return false }
 
             return substructure.offset != mainTypeSubstructure.offset &&
                 supportingTypeKinds.contains(declarationKind)
+        }
+    }
+
+    private func previewProviderSubstructures(in file: SwiftLintFile) -> [SourceKittenDictionary] {
+        return file.structureDictionary.substructure.filter { substructure in
+            return substructure.inheritedTypes.contains("PreviewProvider")
         }
     }
 
@@ -133,6 +146,8 @@ public struct FileTypesOrderRule: ConfigurationProviderRule, OptInRule {
 
         let priorityKindSubstructures = dict.substructure.filter { substructure in
             guard let kind = substructure.declarationKind else { return false }
+            guard !substructure.inheritedTypes.contains("PreviewProvider") else { return false }
+
             return priorityKinds.contains(kind)
         }
 

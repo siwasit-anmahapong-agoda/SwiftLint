@@ -13,77 +13,77 @@ public struct UnusedControlFlowLabelRule: SubstitutionCorrectableASTRule, Config
         description: "Unused control flow label should be removed.",
         kind: .lint,
         nonTriggeringExamples: [
-            "loop: while true { break loop }",
-            "loop: while true { continue loop }",
-            "loop:\n    while true { break loop }",
-            "while true { break }",
-            "loop: for x in array { break loop }",
-            """
+            Example("loop: while true { break loop }"),
+            Example("loop: while true { continue loop }"),
+            Example("loop:\n    while true { break loop }"),
+            Example("while true { break }"),
+            Example("loop: for x in array { break loop }"),
+            Example("""
             label: switch number {
             case 1: print("1")
             case 2: print("2")
             default: break label
             }
-            """,
-            """
+            """),
+            Example("""
             loop: repeat {
                 if x == 10 {
                     break loop
                 }
             } while true
-            """
+            """)
         ],
         triggeringExamples: [
-            "↓loop: while true { break }",
-            "↓loop: while true { break loop1 }",
-            "↓loop: while true { break outerLoop }",
-            "↓loop: for x in array { break }",
-            """
+            Example("↓loop: while true { break }"),
+            Example("↓loop: while true { break loop1 }"),
+            Example("↓loop: while true { break outerLoop }"),
+            Example("↓loop: for x in array { break }"),
+            Example("""
             ↓label: switch number {
             case 1: print("1")
             case 2: print("2")
             default: break
             }
-            """,
-            """
+            """),
+            Example("""
             ↓loop: repeat {
                 if x == 10 {
                     break
                 }
             } while true
-            """
+            """)
         ],
         corrections: [
-            "↓loop: while true { break }": "while true { break }",
-            "↓loop: while true { break loop1 }": "while true { break loop1 }",
-            "↓loop: while true { break outerLoop }": "while true { break outerLoop }",
-            "↓loop: for x in array { break }": "for x in array { break }",
-            """
+            Example("↓loop: while true { break }"): Example("while true { break }"),
+            Example("↓loop: while true { break loop1 }"): Example("while true { break loop1 }"),
+            Example("↓loop: while true { break outerLoop }"): Example("while true { break outerLoop }"),
+            Example("↓loop: for x in array { break }"): Example("for x in array { break }"),
+            Example("""
             ↓label: switch number {
             case 1: print("1")
             case 2: print("2")
             default: break
             }
-            """: """
+            """): Example("""
                 switch number {
                 case 1: print("1")
                 case 2: print("2")
                 default: break
                 }
-                """,
-            """
+                """),
+            Example("""
             ↓loop: repeat {
                 if x == 10 {
                     break
                 }
             } while true
-            """: """
+            """): Example("""
                 repeat {
                     if x == 10 {
                         break
                     }
                 } while true
-                """
+                """)
         ]
     )
 
@@ -92,7 +92,7 @@ public struct UnusedControlFlowLabelRule: SubstitutionCorrectableASTRule, Config
     public func validate(file: SwiftLintFile, kind: StatementKind,
                          dictionary: SourceKittenDictionary) -> [StyleViolation] {
         return self.violationRanges(in: file, kind: kind, dictionary: dictionary).map { range in
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severity,
                            location: Location(file: file, characterOffset: range.location))
         }
@@ -103,9 +103,9 @@ public struct UnusedControlFlowLabelRule: SubstitutionCorrectableASTRule, Config
         let contentsNSString = file.stringView
         if let byteRange = contentsNSString.NSRangeToByteRange(start: violationRange.location,
                                                                length: violationRange.length),
-            let nextToken = file.syntaxMap.tokens.first(where: { $0.offset > byteRange.location }),
-            let nextTokenLocation = contentsNSString.byteRangeToNSRange(start: nextToken.offset, length: 0) {
-            rangeToRemove.length = nextTokenLocation.location - violationRange.location
+            let nextToken = file.syntaxMap.tokens.first(where: { $0.offset > byteRange.location }) {
+            let nextTokenLocation = contentsNSString.location(fromByteOffset: nextToken.offset)
+            rangeToRemove.length = nextTokenLocation - violationRange.location
         }
 
         return (rangeToRemove, "")
@@ -113,23 +113,19 @@ public struct UnusedControlFlowLabelRule: SubstitutionCorrectableASTRule, Config
 
     public func violationRanges(in file: SwiftLintFile, kind: StatementKind,
                                 dictionary: SourceKittenDictionary) -> [NSRange] {
-        guard type(of: self).kinds.contains(kind),
-            let offset = dictionary.offset, let length = dictionary.length,
-            case let byteRange = NSRange(location: offset, length: length),
+        guard Self.kinds.contains(kind),
+            let byteRange = dictionary.byteRange,
             case let tokens = file.syntaxMap.tokens(inByteRange: byteRange),
             let firstToken = tokens.first,
             firstToken.kind == .identifier,
             let tokenContent = file.contents(for: firstToken),
             case let contents = file.stringView,
-            let range = contents.byteRangeToNSRange(start: offset, length: length) else {
-                return []
-        }
-
-        let pattern = "(?:break|continue)\\s+\(tokenContent)\\b"
-        guard file.match(pattern: pattern, with: [.keyword, .identifier], range: range).isEmpty,
-            let violationRange = contents.byteRangeToNSRange(start: firstToken.offset,
-                                                             length: firstToken.length) else {
-                return []
+            let range = contents.byteRangeToNSRange(byteRange),
+            case let pattern = "(?:break|continue)\\s+\(tokenContent)\\b",
+            file.match(pattern: pattern, with: [.keyword, .identifier], range: range).isEmpty,
+            let violationRange = contents.byteRangeToNSRange(firstToken.range)
+        else {
+            return []
         }
 
         return [violationRange]

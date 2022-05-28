@@ -38,8 +38,8 @@ public struct Command: Equatable {
         /// The rule(s) associated with this command should be disabled by the SwiftLint engine.
         case disable
 
-        /// Returns the inverse action that can cancel out the current action, restoring the SwifttLint engine's state
-        /// prior to the current action.
+        /// - returns: The inverse action that can cancel out the current action, restoring the SwifttLint engine's
+        ///            state prior to the current action.
         internal func inverse() -> Action {
             switch self {
             case .enable: return .disable
@@ -81,7 +81,7 @@ public struct Command: Equatable {
     /// - parameter character:       The character offset within the line in the source file where this command is
     ///                              defined.
     /// - parameter modifier:        This command's modifier, if any.
-    /// - parameter trailingComment: The comment following this command's `-` delimeter, if any.
+    /// - parameter trailingComment: The comment following this command's `-` delimiter, if any.
     public init(action: Action, ruleIdentifiers: Set<RuleIdentifier>, line: Int = 0,
                 character: Int? = nil, modifier: Modifier? = nil, trailingComment: String? = nil) {
         self.action = action
@@ -95,9 +95,9 @@ public struct Command: Equatable {
     /// Creates a command based on the specified parameters.
     ///
     /// - parameter actionString: The string in the command's definition describing its action.
-    /// - parameter line:            The line in the source file where this command is defined.
-    /// - parameter character:       The character offset within the line in the source file where this command is
-    ///                              defined.
+    /// - parameter line:         The line in the source file where this command is defined.
+    /// - parameter character:    The character offset within the line in the source file where this command is
+    ///                           defined.
     public init?(actionString: String, line: Int, character: Int) {
         let scanner = Scanner(string: actionString)
         _ = scanner.scanString(string: "swiftlint:")
@@ -115,18 +115,18 @@ public struct Command: Equatable {
         self.line = line
         self.character = character
 
-        let rawRuleTexts = scanner.scanUpToString(Command.commentDelimiter) ?? ""
+        let rawRuleTexts = scanner.scanUpToString(Self.commentDelimiter) ?? ""
         if scanner.isAtEnd {
             trailingComment = nil
         } else {
             // Store any text after the comment delimiter as the trailingComment.
             // The addition to scanLocation is to move past the delimiter
-            let startOfCommentPastDelimiter = scanner.scanLocation + Command.commentDelimiter.count
+            let startOfCommentPastDelimiter = scanner.scanLocation + Self.commentDelimiter.count
             trailingComment = scanner.string.bridge().substring(from: startOfCommentPastDelimiter)
         }
-        let ruleTexts = rawRuleTexts.components(separatedBy: .whitespaces).filter {
+        let ruleTexts = rawRuleTexts.components(separatedBy: .whitespacesAndNewlines).filter {
             let component = $0.trimmingCharacters(in: .whitespaces)
-            return !component.isEmpty && component != "*/"
+            return component.isNotEmpty && component != "*/"
         }
 
         ruleIdentifiers = Set(ruleTexts.map(RuleIdentifier.init(_:)))
@@ -144,6 +144,8 @@ public struct Command: Equatable {
 
     /// Expands the current command into its fully descriptive form without any modifiers.
     /// If the command doesn't have a modifier, it is returned as-is.
+    ///
+    /// - returns: The expanded commands.
     internal func expand() -> [Command] {
         guard let modifier = modifier else {
             return [self]

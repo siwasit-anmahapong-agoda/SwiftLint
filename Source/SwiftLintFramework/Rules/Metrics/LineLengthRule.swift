@@ -16,14 +16,14 @@ public struct LineLengthRule: ConfigurationProviderRule {
         description: "Lines should not span too many characters.",
         kind: .metrics,
         nonTriggeringExamples: [
-            String(repeating: "/", count: 120) + "\n",
-            String(repeating: "#colorLiteral(red: 0.9607843161, green: 0.7058823705, blue: 0.200000003, alpha: 1)", count: 120) + "\n",
-            String(repeating: "#imageLiteral(resourceName: \"image.jpg\")", count: 120) + "\n"
+            Example(String(repeating: "/", count: 120) + "\n"),
+            Example(String(repeating: "#colorLiteral(red: 0.9607843161, green: 0.7058823705, blue: 0.200000003, alpha: 1)", count: 120) + "\n"),
+            Example(String(repeating: "#imageLiteral(resourceName: \"image.jpg\")", count: 120) + "\n")
         ],
         triggeringExamples: [
-            String(repeating: "/", count: 121) + "\n",
-            String(repeating: "#colorLiteral(red: 0.9607843161, green: 0.7058823705, blue: 0.200000003, alpha: 1)", count: 121) + "\n",
-            String(repeating: "#imageLiteral(resourceName: \"image.jpg\")", count: 121) + "\n"
+            Example(String(repeating: "/", count: 121) + "\n"),
+            Example(String(repeating: "#colorLiteral(red: 0.9607843161, green: 0.7058823705, blue: 0.200000003, alpha: 1)", count: 121) + "\n"),
+            Example(String(repeating: "#imageLiteral(resourceName: \"image.jpg\")", count: 121) + "\n")
         ]
     )
 
@@ -76,9 +76,8 @@ public struct LineLengthRule: ConfigurationProviderRule {
             let length = strippedString.count
 
             for param in configuration.params where length > param.value {
-                let reason = "Line should be \(configuration.length.warning) characters or less: " +
-                             "currently \(length) characters"
-                return StyleViolation(ruleDescription: type(of: self).description,
+                let reason = "Line should be \(param.value) characters or less: currently \(length) characters"
+                return StyleViolation(ruleDescription: Self.description,
                                       severity: param.severity,
                                       location: Location(file: file.path, line: line.index),
                                       reason: reason)
@@ -91,7 +90,7 @@ public struct LineLengthRule: ConfigurationProviderRule {
     ///
     /// - parameter sourceString: Original string, possibly containing literals
     /// - parameter delimiter:    Delimiter of the literal
-    ///     (characters before the parentheses, e.g. `#colorLiteral`)
+    ///                           (characters before the parentheses, e.g. `#colorLiteral`)
     ///
     /// - returns: sourceString with the given literals replaced by `#`
     private func stripLiterals(fromSourceString sourceString: String,

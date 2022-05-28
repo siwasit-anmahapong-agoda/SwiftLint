@@ -60,9 +60,13 @@ public struct LineLengthConfiguration: RuleConfiguration, Equatable {
     }
 
     /// Applies configuration as an array of integers. Returns true if did apply.
+    ///
+    /// - parameter configuration: The untyped configuration value to apply.
+    ///
+    /// - returns: True if the configuration was successfuly applied.
     private mutating func applyArray(configuration: Any) -> Bool {
         guard let configurationArray = [Int].array(of: configuration),
-            !configurationArray.isEmpty else {
+            configurationArray.isNotEmpty else {
             return false
         }
 
@@ -73,10 +77,14 @@ public struct LineLengthConfiguration: RuleConfiguration, Equatable {
     }
 
     /// Applies configuration as a dictionary. Throws if configuration couldn't be applied.
+    ///
+    /// - parameter configuration: The untyped configuration value to apply.
+    ///
+    /// - throws: Throws if the configuration value isn't properly formatted.
     private mutating func applyDictionary(configuration: Any) throws {
         let error = ConfigurationError.unknownConfiguration
         guard let configDict = configuration as? [String: Any],
-            !configDict.isEmpty else {
+            configDict.isNotEmpty else {
             throw error
         }
 

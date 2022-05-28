@@ -14,7 +14,7 @@ public struct ColonRule: CorrectableRule, ConfigurationProviderRule {
 
     public static let description = RuleDescription(
         identifier: "colon",
-        name: "Colon",
+        name: "Colon Spacing",
         description: "Colons should be next to the identifier when specifying a type " +
                      "and next to the key in dictionary literals.",
         kind: .style,
@@ -25,7 +25,7 @@ public struct ColonRule: CorrectableRule, ConfigurationProviderRule {
 
     public func validate(file: SwiftLintFile) -> [StyleViolation] {
         let violations = typeColonViolationRanges(in: file, matching: pattern).compactMap { range in
-            return StyleViolation(ruleDescription: type(of: self).description,
+            return StyleViolation(ruleDescription: Self.description,
                                   severity: configuration.severityConfiguration.severity,
                                   location: Location(file: file, characterOffset: range.location))
         }
@@ -43,12 +43,12 @@ public struct ColonRule: CorrectableRule, ConfigurationProviderRule {
     public func correct(file: SwiftLintFile) -> [Correction] {
         let violations = correctionRanges(in: file)
         let matches = violations.filter {
-            !file.ruleEnabled(violatingRanges: [$0.range], for: self).isEmpty
+            file.ruleEnabled(violatingRanges: [$0.range], for: self).isNotEmpty
         }
 
-        guard !matches.isEmpty else { return [] }
+        guard matches.isNotEmpty else { return [] }
         let regularExpression = regex(pattern)
-        let description = type(of: self).description
+        let description = Self.description
         var corrections = [Correction]()
         var contents = file.contents
         for (range, kind) in matches.reversed() {
@@ -79,17 +79,11 @@ public struct ColonRule: CorrectableRule, ConfigurationProviderRule {
         let contents = file.stringView
         let dictViolations: [RangeWithKind] = dictionaryColonViolationRanges(in: file,
                                                                              dictionary: dictionary).compactMap {
-            guard let range = contents.byteRangeToNSRange(start: $0.location, length: $0.length) else {
-                return nil
-            }
-            return (range: range, kind: .dictionary)
+            return contents.byteRangeToNSRange($0).map { (range: $0, kind: .dictionary) }
         }
         let functionViolations: [RangeWithKind] = functionCallColonViolationRanges(in: file,
                                                                                    dictionary: dictionary).compactMap {
-            guard let range = contents.byteRangeToNSRange(start: $0.location, length: $0.length) else {
-                return nil
-            }
-            return (range: range, kind: .functionCall)
+            return contents.byteRangeToNSRange($0).map { (range: $0, kind: .functionCall) }
         }
 
         return (violations + dictViolations + functionViolations).sorted {
@@ -99,14 +93,20 @@ public struct ColonRule: CorrectableRule, ConfigurationProviderRule {
 }
 
 extension ColonRule: ASTRule {
-    /// Only returns dictionary and function calls colon violations
+    /// Only returns dictionary and function calls colon violations.
+    ///
+    /// - parameter file:       The file to validate.
+    /// - parameter kind:       The expression kind to parse.
+    /// - parameter dictionary: The substructure to validate.
+    ///
+    /// - returns: Colon rule style violations in dictionaries and function calls.
     public func validate(file: SwiftLintFile, kind: SwiftExpressionKind,
                          dictionary: SourceKittenDictionary) -> [StyleViolation] {
         let ranges = dictionaryColonViolationRanges(in: file, kind: kind, dictionary: dictionary) +
             functionCallColonViolationRanges(in: file, kind: kind, dictionary: dictionary)
 
         return ranges.map {
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severityConfiguration.severity,
                            location: Location(file: file, byteOffset: $0.location))
         }

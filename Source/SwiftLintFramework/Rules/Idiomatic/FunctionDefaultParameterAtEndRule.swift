@@ -11,29 +11,29 @@ public struct FunctionDefaultParameterAtEndRule: ASTRule, ConfigurationProviderR
         description: "Prefer to locate parameters with defaults toward the end of the parameter list.",
         kind: .idiomatic,
         nonTriggeringExamples: [
-            "func foo(baz: String, bar: Int = 0) {}",
-            "func foo(x: String, y: Int = 0, z: CGFloat = 0) {}",
-            "func foo(bar: String, baz: Int = 0, z: () -> Void) {}",
-            "func foo(bar: String, z: () -> Void, baz: Int = 0) {}",
-            "func foo(bar: Int = 0) {}",
-            "func foo() {}",
-            """
+            Example("func foo(baz: String, bar: Int = 0) {}"),
+            Example("func foo(x: String, y: Int = 0, z: CGFloat = 0) {}"),
+            Example("func foo(bar: String, baz: Int = 0, z: () -> Void) {}"),
+            Example("func foo(bar: String, z: () -> Void, baz: Int = 0) {}"),
+            Example("func foo(bar: Int = 0) {}"),
+            Example("func foo() {}"),
+            Example("""
             class A: B {
               override func foo(bar: Int = 0, baz: String) {}
-            """,
-            "func foo(bar: Int = 0, completion: @escaping CompletionHandler) {}",
-            """
+            """),
+            Example("func foo(bar: Int = 0, completion: @escaping CompletionHandler) {}"),
+            Example("""
             func foo(a: Int, b: CGFloat = 0) {
               let block = { (error: Error?) in }
             }
-            """,
-            """
+            """),
+            Example("""
             func foo(a: String, b: String? = nil,
                      c: String? = nil, d: @escaping AlertActionHandler = { _ in }) {}
-            """
+            """)
         ],
         triggeringExamples: [
-            "↓func foo(bar: Int = 0, baz: String) {}"
+            Example("↓func foo(bar: Int = 0, baz: String) {}")
         ]
     )
 
@@ -64,13 +64,13 @@ public struct FunctionDefaultParameterAtEndRule: ASTRule, ConfigurationProviderR
                 return paramOffset < bodyOffset
             }
 
-        guard !params.isEmpty else {
+        guard params.isNotEmpty else {
             return []
         }
 
         let containsDefaultValue = { self.isDefaultParameter(file: file, dictionary: $0) }
         let defaultParams = params.filter(containsDefaultValue)
-        guard !defaultParams.isEmpty else {
+        guard defaultParams.isNotEmpty else {
             return []
         }
 
@@ -82,7 +82,7 @@ public struct FunctionDefaultParameterAtEndRule: ASTRule, ConfigurationProviderR
         }
 
         return [
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severity,
                            location: Location(file: file, byteOffset: offset))
         ]
@@ -97,10 +97,8 @@ public struct FunctionDefaultParameterAtEndRule: ASTRule, ConfigurationProviderR
     }
 
     private func isDefaultParameter(file: SwiftLintFile, dictionary: SourceKittenDictionary) -> Bool {
-        let contents = file.stringView
-        guard let offset = dictionary.offset, let length = dictionary.length,
-            let range = contents.byteRangeToNSRange(start: offset, length: length) else {
-                return false
+        guard let range = dictionary.byteRange.flatMap(file.stringView.byteRangeToNSRange) else {
+            return false
         }
 
         return regex("=").firstMatch(in: file.contents, options: [], range: range) != nil

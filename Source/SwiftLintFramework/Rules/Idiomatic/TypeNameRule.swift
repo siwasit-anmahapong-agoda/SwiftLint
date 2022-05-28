@@ -21,11 +21,6 @@ public struct TypeNameRule: ASTRule, ConfigurationProviderRule {
 
     private let typeKinds = SwiftDeclarationKind.typeKinds
 
-    public func validate(file: SwiftLintFile) -> [StyleViolation] {
-        return validateTypeAliasesAndAssociatedTypes(in: file) +
-            validate(file: file, dictionary: file.structureDictionary)
-    }
-
     public func validate(file: SwiftLintFile, kind: SwiftDeclarationKind,
                          dictionary: SourceKittenDictionary) -> [StyleViolation] {
         guard typeKinds.contains(kind),
@@ -37,31 +32,8 @@ public struct TypeNameRule: ASTRule, ConfigurationProviderRule {
         return validate(name: name, dictionary: dictionary, file: file, offset: offset)
     }
 
-    private func validateTypeAliasesAndAssociatedTypes(in file: SwiftLintFile) -> [StyleViolation] {
-        guard SwiftVersion.current < .fourDotOne else {
-            return []
-        }
-
-        let rangesAndTokens = file.rangesAndTokens(matching: "(typealias|associatedtype)\\s+.+?\\b")
-        return rangesAndTokens.flatMap { _, tokens -> [StyleViolation] in
-            guard tokens.count == 2,
-                let keywordToken = tokens.first,
-                let nameToken = tokens.last,
-                keywordToken.kind == .keyword,
-                nameToken.kind == .identifier else {
-                    return []
-            }
-
-            guard let name = file.contents(for: nameToken) else {
-                return []
-            }
-
-            return validate(name: name, file: file, offset: nameToken.offset)
-        }
-    }
-
     private func validate(name: String, dictionary: SourceKittenDictionary = SourceKittenDictionary([:]),
-                          file: SwiftLintFile, offset: Int) -> [StyleViolation] {
+                          file: SwiftLintFile, offset: ByteCount) -> [StyleViolation] {
         guard !configuration.excluded.contains(name) else {
             return []
         }
@@ -71,18 +43,18 @@ public struct TypeNameRule: ASTRule, ConfigurationProviderRule {
             .nameStrippingTrailingSwiftUIPreviewProvider(dictionary)
         let allowedSymbols = configuration.allowedSymbols.union(.alphanumerics)
         if !allowedSymbols.isSuperset(of: CharacterSet(charactersIn: name)) {
-            return [StyleViolation(ruleDescription: type(of: self).description,
+            return [StyleViolation(ruleDescription: Self.description,
                                    severity: .error,
                                    location: Location(file: file, byteOffset: offset),
                                    reason: "Type name should only contain alphanumeric characters: '\(name)'")]
         } else if configuration.validatesStartWithLowercase &&
             !String(name[name.startIndex]).isUppercase() {
-            return [StyleViolation(ruleDescription: type(of: self).description,
+            return [StyleViolation(ruleDescription: Self.description,
                                    severity: .error,
                                    location: Location(file: file, byteOffset: offset),
                                    reason: "Type name should start with an uppercase character: '\(name)'")]
         } else if let severity = severity(forLength: name.count) {
-            return [StyleViolation(ruleDescription: type(of: self).description,
+            return [StyleViolation(ruleDescription: Self.description,
                                    severity: severity,
                                    location: Location(file: file, byteOffset: offset),
                                    reason: "Type name should be between \(configuration.minLengthThreshold) and " +

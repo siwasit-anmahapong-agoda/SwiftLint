@@ -11,86 +11,85 @@ public struct ReduceIntoRule: ASTRule, ConfigurationProviderRule, OptInRule, Aut
         name: "Reduce Into",
         description: "Prefer `reduce(into:_:)` over `reduce(_:_:)` for copy-on-write types",
         kind: .performance,
-        minSwiftVersion: .four,
         nonTriggeringExamples: [
-            """
+            Example("""
             let foo = values.reduce(into: "abc") { $0 += "\\($1)" }
-            """,
-            """
+            """),
+            Example("""
             values.reduce(into: Array<Int>()) { result, value in
                 result.append(value)
             }
-            """,
-            """
+            """),
+            Example("""
             let rows = violations.enumerated().reduce(into: "") { rows, indexAndViolation in
                 rows.append(generateSingleRow(for: indexAndViolation.1, at: indexAndViolation.0 + 1))
             }
-            """,
-            """
+            """),
+            Example("""
             zip(group, group.dropFirst()).reduce(into: []) { result, pair in
                 result.append(pair.0 + pair.1)
             }
-            """,
-            """
+            """),
+            Example("""
             let foo = values.reduce(into: [String: Int]()) { result, value in
                 result["\\(value)"] = value
             }
-            """,
-            """
+            """),
+            Example("""
             let foo = values.reduce(into: Dictionary<String, Int>.init()) { result, value in
                 result["\\(value)"] = value
             }
-            """,
-            """
+            """),
+            Example("""
             let foo = values.reduce(into: [Int](repeating: 0, count: 10)) { result, value in
                 result.append(value)
             }
-            """,
-            """
+            """),
+            Example("""
             let foo = values.reduce(MyClass()) { result, value in
                 result.handleValue(value)
                 return result
             }
-            """
+            """)
         ],
         triggeringExamples: [
-            """
+            Example("""
             let bar = values.↓reduce("abc") { $0 + "\\($1)" }
-            """,
-            """
+            """),
+            Example("""
             values.↓reduce(Array<Int>()) { result, value in
                 result += [value]
             }
-            """,
-            """
+            """),
+            Example("""
             let rows = violations.enumerated().↓reduce("") { rows, indexAndViolation in
                 return rows + generateSingleRow(for: indexAndViolation.1, at: indexAndViolation.0 + 1)
             }
-            """,
-            """
+            """),
+            Example("""
             zip(group, group.dropFirst()).↓reduce([]) { result, pair in
                 result + [pair.0 + pair.1]
             }
-            """,
-            """
+            """),
+            Example("""
             let foo = values.↓reduce([String: Int]()) { result, value in
                 var result = result
                 result["\\(value)"] = value
                 return result
             }
-            """,
-            """
+            """),
+            Example("""
             let bar = values.↓reduce(Dictionary<String, Int>.init()) { result, value in
                 var result = result
                 result["\\(value)"] = value
                 return result
             }
-            """,
-            """
+            """),
+            Example("""
             let bar = values.↓reduce([Int](repeating: 0, count: 10)) { result, value in
                 return result + [value]
             }
-            """
+            """)
         ]
     )
 
@@ -103,7 +102,8 @@ public struct ReduceIntoRule: ASTRule, ConfigurationProviderRule, OptInRule, Aut
             kind == .call,
             let nameOffset = dictionary.nameOffset,
             let nameLength = dictionary.nameLength,
-            let nameRange = file.stringView.byteRangeToNSRange(start: nameOffset, length: nameLength),
+            case let nameByteRange = ByteRange(location: nameOffset, length: nameLength),
+            let nameRange = file.stringView.byteRangeToNSRange(nameByteRange),
             let match = reduceExpression.firstMatch(in: file.contents, options: [], range: nameRange),
             dictionary.enclosedArguments.count == 2,
             // would otherwise equal "into"
@@ -116,7 +116,7 @@ public struct ReduceIntoRule: ASTRule, ConfigurationProviderRule, OptInRule, Aut
             characterOffset: match.range.location
         )
         let violation = StyleViolation(
-            ruleDescription: type(of: self).description,
+            ruleDescription: Self.description,
             severity: configuration.severity,
             location: location
         )
@@ -132,13 +132,11 @@ public struct ReduceIntoRule: ASTRule, ConfigurationProviderRule, OptInRule, Aut
         }
 
         let contents = file.stringView
-        guard let offset = argument.offset,
-            let length = argument.length,
-            let range = contents.byteRangeToNSRange(start: offset, length: length)
+        guard let byteRange = argument.byteRange,
+            let range = contents.byteRangeToNSRange(byteRange)
             else { return false }
 
         // Check for string literal
-        let byteRange = NSRange(location: offset, length: length)
         let kinds = file.syntaxMap.kinds(inByteRange: byteRange)
         if kinds == [.string] {
             return true

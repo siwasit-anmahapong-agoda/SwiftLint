@@ -11,28 +11,28 @@ public struct XCTFailMessageRule: ASTRule, ConfigurationProviderRule, AutomaticT
         description: "An XCTFail call should include a description of the assertion.",
         kind: .idiomatic,
         nonTriggeringExamples: [
-            """
+            Example("""
             func testFoo() {
               XCTFail("bar")
             }
-            """,
-            """
+            """),
+            Example("""
             func testFoo() {
               XCTFail(bar)
             }
-            """
+            """)
         ],
         triggeringExamples: [
-            """
+            Example("""
             func testFoo() {
               ↓XCTFail()
             }
-            """,
-            """
+            """),
+            Example("""
             func testFoo() {
               ↓XCTFail("")
             }
-            """
+            """)
         ]
     )
 
@@ -48,19 +48,19 @@ public struct XCTFailMessageRule: ASTRule, ConfigurationProviderRule, AutomaticT
                 return []
         }
 
-        return [StyleViolation(ruleDescription: type(of: self).description,
+        return [StyleViolation(ruleDescription: Self.description,
                                severity: configuration.severity,
                                location: Location(file: file, byteOffset: offset))]
     }
 
     private func hasEmptyMessage(dictionary: SourceKittenDictionary, file: SwiftLintFile) -> Bool {
-        guard
-            let bodyOffset = dictionary.bodyOffset,
-            let bodyLength = dictionary.bodyLength else { return false }
+        guard let bodyRange = dictionary.bodyByteRange else {
+            return false
+        }
 
-        guard bodyLength > 0 else { return true }
+        guard bodyRange.length > 0 else { return true }
 
-        let body = file.stringView.substringWithByteRange(start: bodyOffset, length: bodyLength)
+        let body = file.stringView.substringWithByteRange(bodyRange)
         return body == "\"\""
     }
 }

@@ -18,15 +18,9 @@ private struct FileCache: Codable {
 
 /// A persisted cache for storing and retrieving linter results.
 public final class LinterCache {
-#if canImport(Darwin) || compiler(>=5.1.0)
     private typealias Encoder = PropertyListEncoder
     private typealias Decoder = PropertyListDecoder
     private static let fileExtension = "plist"
-#else
-    private typealias Encoder = JSONEncoder
-    private typealias Decoder = JSONDecoder
-    private static let fileExtension = "json"
-#endif
 
     private typealias Cache = [String: FileCache]
 
@@ -91,6 +85,9 @@ public final class LinterCache {
     }
 
     /// Persists the cache to disk.
+    ///
+    /// - throws: Throws if the linter cache doesn't have a `location` value, if the cache couldn't be serialized, or if
+    ///           the contents couldn't be written to disk.
     public func save() throws {
         guard let url = location else {
             throw LinterCacheError.noLocation
@@ -99,7 +96,7 @@ public final class LinterCache {
         defer {
             writeCacheLock.unlock()
         }
-        guard !writeCache.isEmpty else {
+        guard writeCache.isNotEmpty else {
             return
         }
 
@@ -108,11 +105,11 @@ public final class LinterCache {
         readCacheLock.unlock()
 
         let encoder = Encoder()
-        for (description, writeFileCache) in writeCache where !writeFileCache.entries.isEmpty {
+        for (description, writeFileCache) in writeCache where writeFileCache.entries.isNotEmpty {
             let fileCacheEntries = readCache[description]?.entries.merging(writeFileCache.entries) { _, write in write }
             let fileCache = fileCacheEntries.map(FileCache.init) ?? writeFileCache
             let data = try encoder.encode(fileCache)
-            let file = url.appendingPathComponent(description).appendingPathExtension(LinterCache.fileExtension)
+            let file = url.appendingPathComponent(description).appendingPathExtension(Self.fileExtension)
             try data.write(to: file, options: .atomic)
         }
     }
@@ -136,7 +133,7 @@ public final class LinterCache {
             return .empty
         }
 
-        let file = location.appendingPathComponent(cacheDescription).appendingPathExtension(LinterCache.fileExtension)
+        let file = location.appendingPathComponent(cacheDescription).appendingPathExtension(Self.fileExtension)
         let data = try? Data(contentsOf: file)
         let fileCache = data.flatMap { try? Decoder().decode(FileCache.self, from: $0) } ?? .empty
         lazyReadCache[cacheDescription] = fileCache

@@ -75,6 +75,8 @@ extension String {
     }
 
     /// Returns a new string, converting the path to a canonical absolute path.
+    ///
+    /// - returns: A new `String`.
     public func absolutePathStandardized() -> String {
         return bridge().absolutePathRepresentation().bridge().standardizingPath
     }
@@ -88,5 +90,31 @@ extension String {
             return !isDirectoryObjC.boolValue
         }
         return false
+    }
+
+    /// Count the number of occurrences of the given character in `self`
+    /// - Parameter character: Character to count
+    /// - Returns: Number of times `character` occurs in `self`
+    public func countOccurrences(of character: Character) -> Int {
+        return self.reduce(0, {
+            $1 == character ? $0 + 1 : $0
+        })
+    }
+
+    /// If self is a path, this method can be used to get a path expression relative to a root directory
+    public func path(relativeTo rootDirectory: String) -> String {
+        var rootDirComps = rootDirectory.components(separatedBy: "/")
+        let rootDirCompsCount = rootDirComps.count
+
+        while true {
+            let sharedRootDir = rootDirComps.joined(separator: "/")
+            if hasPrefix(sharedRootDir) {
+                let path = (0 ..< rootDirCompsCount - rootDirComps.count).map { _ in "/.." }.flatMap { $0 }
+                    + String(dropFirst(sharedRootDir.count))
+                return String(path.dropFirst()) // Remove leading '/'
+            } else {
+                rootDirComps = rootDirComps.dropLast()
+            }
+        }
     }
 }

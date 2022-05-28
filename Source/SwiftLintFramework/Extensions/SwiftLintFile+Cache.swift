@@ -1,7 +1,19 @@
 import Foundation
 import SourceKittenFramework
+import SwiftSyntax
+#if canImport(SwiftSyntaxParser)
+import SwiftSyntaxParser
+#endif
 
-private typealias FileCacheKey = Int
+private let warnSyntaxParserFailureOnceImpl: Void = {
+    queuedPrintError("Could not parse the syntax tree for at least one file. Results may be invalid.")
+}()
+
+private func warnSyntaxParserFailureOnce() {
+    _ = warnSyntaxParserFailureOnceImpl
+}
+
+private typealias FileCacheKey = UUID
 private var responseCache = Cache({ file -> [String: SourceKitRepresentable]? in
     do {
         return try Request.editorOpen(file: file.file).sendIfNotDisabled()
@@ -24,6 +36,25 @@ private var structureDictionaryCache = Cache({ file in
     return structureCache.get(file).map { SourceKittenDictionary($0.dictionary) }
 })
 
+private var syntaxTreeCache = Cache({ file -> SourceFileSyntax? in
+    do {
+        return try SyntaxParser.parse(source: file.contents)
+    } catch {
+        warnSyntaxParserFailureOnce()
+        return nil
+    }
+})
+
+private var commandsCache = Cache({ file -> [Command] in
+    guard let tree = syntaxTreeCache.get(file) else {
+        return []
+    }
+    let locationConverter = SourceLocationConverter(file: file.path ?? "<nopath>", tree: tree)
+    let visitor = CommandVisitor(locationConverter: locationConverter)
+    visitor.walk(tree)
+    return visitor.commands
+})
+
 private var syntaxMapCache = Cache({ file in
     responseCache.get(file).map { SwiftLintSyntaxMap(value: SyntaxMap(sourceKitResponse: $0)) }
 })
@@ -31,6 +62,9 @@ private var syntaxKindsByLinesCache = Cache({ file in file.syntaxKindsByLine() }
 private var syntaxTokensByLinesCache = Cache({ file in file.syntaxTokensByLine() })
 
 internal typealias AssertHandler = () -> Void
+// Re-enable once all parser diagnostics in tests have been addressed.
+// https://github.com/realm/SwiftLint/issues/3348
+internal var parserDiagnosticsDisabledForTests = false
 
 private var assertHandlers = [FileCacheKey: AssertHandler]()
 private var assertHandlerCache = Cache({ file in assertHandlers[file.cacheKey] })
@@ -125,6 +159,22 @@ extension SwiftLintFile {
         }
     }
 
+    internal var parserDiagnostics: [[String: SourceKitRepresentable]]? {
+        if parserDiagnosticsDisabledForTests {
+            return nil
+        }
+
+        guard let response = responseCache.get(self) else {
+            if let handler = assertHandler {
+                handler()
+                return nil
+            }
+            queuedFatalError("Never call this for file that sourcekitd fails.")
+        }
+
+        return response["key.diagnostics"] as? [[String: SourceKitRepresentable]]
+    }
+
     internal var structure: Structure {
         guard let structure = structureCache.get(self) else {
             if let handler = assertHandler {
@@ -158,6 +208,10 @@ extension SwiftLintFile {
         return syntaxMap
     }
 
+    internal var syntaxTree: SourceFileSyntax? { syntaxTreeCache.get(self) }
+
+    internal var commands: [Command] { commandsCache.get(self) }
+
     internal var syntaxTokensByLines: [[SwiftLintSyntaxToken]] {
         guard let syntaxTokensByLines = syntaxTokensByLinesCache.get(self) else {
             if let handler = assertHandler {
@@ -189,6 +243,8 @@ extension SwiftLintFile {
         syntaxMapCache.invalidate(self)
         syntaxTokensByLinesCache.invalidate(self)
         syntaxKindsByLinesCache.invalidate(self)
+        syntaxTreeCache.invalidate(self)
+        commandsCache.invalidate(self)
     }
 
     internal static func clearCaches() {
@@ -200,5 +256,7 @@ extension SwiftLintFile {
         syntaxMapCache.clear()
         syntaxTokensByLinesCache.clear()
         syntaxKindsByLinesCache.clear()
+        syntaxTreeCache.clear()
+        commandsCache.clear()
     }
 }

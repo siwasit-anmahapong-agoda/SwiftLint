@@ -13,21 +13,21 @@ public struct ClosingBraceRule: SubstitutionCorrectableRule, ConfigurationProvid
                      "should not have any whitespaces in the middle.",
         kind: .style,
         nonTriggeringExamples: [
-            "[].map({ })",
-            "[].map(\n  { }\n)"
+            Example("[].map({ })"),
+            Example("[].map(\n  { }\n)")
         ],
         triggeringExamples: [
-            "[].map({ ↓} )",
-            "[].map({ ↓}\t)"
+            Example("[].map({ ↓} )"),
+            Example("[].map({ ↓}\t)")
         ],
         corrections: [
-            "[].map({ ↓} )\n": "[].map({ })\n"
+            Example("[].map({ ↓} )\n"): Example("[].map({ })\n")
         ]
     )
 
     public func validate(file: SwiftLintFile) -> [StyleViolation] {
         return violationRanges(in: file).map {
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severity,
                            location: Location(file: file, characterOffset: $0.location))
         }

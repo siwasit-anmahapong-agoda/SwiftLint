@@ -10,7 +10,6 @@ public struct ClosureBodyLengthRule: OptInRule, ASTRule, ConfigurationProviderRu
         name: "Closure Body Length",
         description: "Closure bodies should not span too many lines.",
         kind: .metrics,
-        minSwiftVersion: .fourDotTwo,
         nonTriggeringExamples: ClosureBodyLengthRuleExamples.nonTriggeringExamples,
         triggeringExamples: ClosureBodyLengthRuleExamples.triggeringExamples
     )
@@ -41,7 +40,7 @@ public struct ClosureBodyLengthRule: OptInRule, ASTRule, ConfigurationProviderRu
             let reason = "Closure body should span \(configuration.warning) lines or less "
                 + "excluding comments and whitespace: currently spans \(lineCount) lines"
 
-            return StyleViolation(ruleDescription: type(of: self).description,
+            return StyleViolation(ruleDescription: Self.description,
                                   severity: parameter.severity,
                                   location: Location(file: file, byteOffset: offset),
                                   reason: reason)

@@ -13,25 +13,25 @@ public struct RedundantDiscardableLetRule: SubstitutionCorrectableRule, Configur
         description: "Prefer `_ = foo()` over `let _ = foo()` when discarding a result from a function.",
         kind: .style,
         nonTriggeringExamples: [
-            "_ = foo()\n",
-            "if let _ = foo() { }\n",
-            "guard let _ = foo() else { return }\n",
-            "let _: ExplicitType = foo()",
-            "while let _ = SplashStyle(rawValue: maxValue) { maxValue += 1 }\n"
+            Example("_ = foo()\n"),
+            Example("if let _ = foo() { }\n"),
+            Example("guard let _ = foo() else { return }\n"),
+            Example("let _: ExplicitType = foo()"),
+            Example("while let _ = SplashStyle(rawValue: maxValue) { maxValue += 1 }\n")
         ],
         triggeringExamples: [
-            "↓let _ = foo()\n",
-            "if _ = foo() { ↓let _ = bar() }\n"
+            Example("↓let _ = foo()\n"),
+            Example("if _ = foo() { ↓let _ = bar() }\n")
         ],
         corrections: [
-            "↓let _ = foo()\n": "_ = foo()\n",
-            "if _ = foo() { ↓let _ = bar() }\n": "if _ = foo() { _ = bar() }\n"
+            Example("↓let _ = foo()\n"): Example("_ = foo()\n"),
+            Example("if _ = foo() { ↓let _ = bar() }\n"): Example("if _ = foo() { _ = bar() }\n")
         ]
     )
 
     public func validate(file: SwiftLintFile) -> [StyleViolation] {
         return violationRanges(in: file).map {
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severity,
                            location: Location(file: file, characterOffset: $0.location))
         }
@@ -55,21 +55,17 @@ public struct RedundantDiscardableLetRule: SubstitutionCorrectableRule, Configur
         }
     }
 
-    private func isInBooleanCondition(byteOffset: Int, dictionary: SourceKittenDictionary) -> Bool {
-        guard let offset = dictionary.offset,
-            let byteRange = dictionary.length.map({ NSRange(location: offset, length: $0) }),
-            NSLocationInRange(byteOffset, byteRange) else {
-                return false
+    private func isInBooleanCondition(byteOffset: ByteCount, dictionary: SourceKittenDictionary) -> Bool {
+        guard let byteRange = dictionary.byteRange, byteRange.contains(byteOffset) else {
+            return false
         }
 
         let kinds: Set<StatementKind> = [.if, .guard, .while]
         if let kind = dictionary.statementKind, kinds.contains(kind) {
             let conditionKind = "source.lang.swift.structure.elem.condition_expr"
             for element in dictionary.elements where element.kind == conditionKind {
-                guard let elementOffset = element.offset,
-                    let elementRange = element.length.map({ NSRange(location: elementOffset, length: $0) }),
-                    NSLocationInRange(byteOffset, elementRange) else {
-                        continue
+                guard let elementRange = element.byteRange, elementRange.contains(byteOffset) else {
+                    continue
                 }
 
                 return true

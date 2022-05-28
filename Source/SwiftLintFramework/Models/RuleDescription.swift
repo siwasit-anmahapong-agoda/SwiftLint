@@ -1,5 +1,5 @@
 /// A detailed description for a SwiftLint rule. Used for both documentation and testing purposes.
-public struct RuleDescription: Equatable, Codable {
+public struct RuleDescription: Equatable {
     /// The rule's unique identifier, to be used in configuration files and SwiftLint commands.
     /// Should be short and only comprised of lowercase latin alphabet letters and underscores formatted in snake case.
     public let identifier: String
@@ -20,7 +20,7 @@ public struct RuleDescription: Equatable, Codable {
     ///
     /// These examples are also used for testing purposes if the rule conforms to `AutomaticTestableRule`. Tests will
     /// validate that the rule does not trigger any violations for these examples.
-    public let nonTriggeringExamples: [String]
+    public let nonTriggeringExamples: [Example]
 
     /// Swift source examples that do trigger one or more violations for this rule. Used for documentation purposes to
     /// inform users of various samples of code that are considered invalid by this rule. Should be valid Swift syntax
@@ -30,7 +30,7 @@ public struct RuleDescription: Equatable, Codable {
     ///
     /// These examples are also used for testing purposes if the rule conforms to `AutomaticTestableRule`. Tests will
     /// validate that the rule triggers violations for these examples wherever `↓` markers are located.
-    public let triggeringExamples: [String]
+    public let triggeringExamples: [Example]
 
     /// Pairs of Swift source examples, where keys are examples that trigger violations for this rule, and the values
     /// are the expected value after applying corrections with the rule.
@@ -39,7 +39,7 @@ public struct RuleDescription: Equatable, Codable {
     ///
     /// These examples are used for testing purposes if the rule conforms to `AutomaticTestableRule`. Tests will
     /// validate that the rule corrects all keys to their corresponding values.
-    public let corrections: [String: String]
+    public let corrections: [Example: Example]
 
     /// Any previous iteration of the rule's identifier that was previously shipped with SwiftLint.
     public let deprecatedAliases: Set<String>
@@ -60,10 +60,21 @@ public struct RuleDescription: Equatable, Codable {
     }
 
     /// Creates a `RuleDescription` by specifying all its properties directly.
+    ///
+    /// - parameter identifier:            Sets the description's `identifier` property.
+    /// - parameter name:                  Sets the description's `name` property.
+    /// - parameter description:           Sets the description's `description` property.
+    /// - parameter kind:                  Sets the description's `kind` property.
+    /// - parameter minSwiftVersion:       Sets the description's `minSwiftVersion` property.
+    /// - parameter nonTriggeringExamples: Sets the description's `nonTriggeringExamples` property.
+    /// - parameter triggeringExamples:    Sets the description's `triggeringExamples` property.
+    /// - parameter corrections:           Sets the description's `corrections` property.
+    /// - parameter deprecatedAliases:     Sets the description's `deprecatedAliases` property.
+    /// - parameter requiresFileOnDisk:    Sets the description's `requiresFileOnDisk` property.
     public init(identifier: String, name: String, description: String, kind: RuleKind,
-                minSwiftVersion: SwiftVersion = .three,
-                nonTriggeringExamples: [String] = [], triggeringExamples: [String] = [],
-                corrections: [String: String] = [:],
+                minSwiftVersion: SwiftVersion = .five,
+                nonTriggeringExamples: [Example] = [], triggeringExamples: [Example] = [],
+                corrections: [Example: Example] = [:],
                 deprecatedAliases: Set<String> = [],
                 requiresFileOnDisk: Bool = false) {
         self.identifier = identifier

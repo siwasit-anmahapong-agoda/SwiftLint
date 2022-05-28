@@ -1,7 +1,7 @@
 import SourceKittenFramework
 
 public struct TypeContentsOrderRule: ConfigurationProviderRule, OptInRule {
-    private typealias TypeContentOffset = (typeContent: TypeContent, offset: Int)
+    private typealias TypeContentOffset = (typeContent: TypeContent, offset: ByteCount)
 
     public var configuration = TypeContentsOrderConfiguration()
 
@@ -31,7 +31,7 @@ public struct TypeContentsOrderRule: ConfigurationProviderRule, OptInRule {
         let typeContentOffsets = self.typeContentOffsets(in: substructure)
         let orderedTypeContentOffsets = typeContentOffsets.sorted { lhs, rhs in lhs.offset < rhs.offset }
 
-        var violations =  [StyleViolation]()
+        var violations = [StyleViolation]()
 
         var lastMatchingIndex = -1
         for expectedTypesContents in configuration.order {
@@ -57,7 +57,7 @@ public struct TypeContentsOrderRule: ConfigurationProviderRule, OptInRule {
                 let article = ["a", "e", "i", "o", "u"].contains(content.substring(from: 0, length: 1)) ? "An" : "A"
 
                 let styleViolation = StyleViolation(
-                    ruleDescription: type(of: self).description,
+                    ruleDescription: Self.description,
                     severity: configuration.severityConfiguration.severity,
                     location: Location(file: file, byteOffset: typeContentOffset.offset),
                     reason: "\(article) '\(content)' should not be placed amongst the type content(s) '\(expected)'."
@@ -121,8 +121,10 @@ public struct TypeContentsOrderRule: ConfigurationProviderRule, OptInRule {
                 "viewDidDisappear("
             ]
 
-            if typeContentStructure.name!.starts(with: "init") || typeContentStructure.name!.starts(with: "deinit") {
+            if typeContentStructure.name!.starts(with: "init(") {
                 return .initializer
+            } else if typeContentStructure.name!.starts(with: "deinit") {
+                return .deinitializer
             } else if viewLifecycleMethodNames.contains(where: { typeContentStructure.name!.starts(with: $0) }) {
                 return .viewLifeCycleMethod
             } else if typeContentStructure.enclosedSwiftAttributes.contains(SwiftDeclarationAttributeKind.ibaction) {

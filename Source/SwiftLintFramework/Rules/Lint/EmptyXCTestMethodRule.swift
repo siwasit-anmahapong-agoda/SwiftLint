@@ -33,19 +33,15 @@ public struct EmptyXCTestMethodRule: Rule, OptInRule, ConfigurationProviderRule,
         return dictionary.substructure.compactMap { subDictionary -> StyleViolation? in
             guard
                 let kind = subDictionary.declarationKind,
-                SwiftDeclarationKind.functionKinds.contains(kind),
-                let name = subDictionary.name, isXCTestMethod(name),
+                let name = subDictionary.name,
+                XCTestHelpers.isXCTestMember(kind: kind, name: name, dictionary: subDictionary),
                 let offset = subDictionary.offset,
                 subDictionary.enclosedVarParameters.isEmpty,
                 subDictionary.substructure.isEmpty else { return nil }
 
-            return StyleViolation(ruleDescription: type(of: self).description,
+            return StyleViolation(ruleDescription: Self.description,
                                   severity: configuration.severity,
                                   location: Location(file: file, byteOffset: offset))
         }
-    }
-
-    private func isXCTestMethod(_ method: String) -> Bool {
-        return method.hasPrefix("test") || method == "setUp()" || method == "tearDown()"
     }
 }

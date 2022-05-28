@@ -1,68 +1,68 @@
-#if canImport(CommonCrypto)
-import CommonCrypto
-#else
+#if canImport(CryptoSwift)
 import CryptoSwift
 #endif
 import Foundation
 
-#if canImport(CommonCrypto)
-private extension String {
-    func md5() -> String {
-        let context = UnsafeMutablePointer<CC_MD5_CTX>.allocate(capacity: 1)
-        var digest = [UInt8](repeating: 0, count: Int(CC_MD5_DIGEST_LENGTH))
-        CC_MD5_Init(context)
-        CC_MD5_Update(context, self, CC_LONG(lengthOfBytes(using: .utf8)))
-        CC_MD5_Final(&digest, context)
-        context.deallocate()
-        return digest.reduce(into: "") { $0.append(String(format: "%02x", $1)) }
-    }
-}
-#endif
-
 extension Configuration {
-    // MARK: Caching Configurations By Path (In-Memory)
+    // MARK: Caching Configurations By Identifier (In-Memory)
+    private static var cachedConfigurationsByIdentifier = [String: Configuration]()
+    private static var cachedConfigurationsByIdentifierLock = NSLock()
 
-    private static var cachedConfigurationsByPath = [String: Configuration]()
-    private static var cachedConfigurationsByPathLock = NSLock()
-
-    internal func setCached(atPath path: String) {
-        Configuration.cachedConfigurationsByPathLock.lock()
-        Configuration.cachedConfigurationsByPath[path] = self
-        Configuration.cachedConfigurationsByPathLock.unlock()
+    /// Since the cache is stored in a static var, this function is used to reset the cache during tests
+    internal static func resetCache() {
+        Self.cachedConfigurationsByIdentifierLock.lock()
+        Self.cachedConfigurationsByIdentifier = [:]
+        Self.cachedConfigurationsByIdentifierLock.unlock()
     }
 
-    internal static func getCached(atPath path: String) -> Configuration? {
-        cachedConfigurationsByPathLock.lock()
-        defer { cachedConfigurationsByPathLock.unlock() }
-        return cachedConfigurationsByPath[path]
+    internal func setCached(forIdentifier identifier: String) {
+        Self.cachedConfigurationsByIdentifierLock.lock()
+        Self.cachedConfigurationsByIdentifier[identifier] = self
+        Self.cachedConfigurationsByIdentifierLock.unlock()
+    }
+
+    internal static func getCached(forIdentifier identifier: String) -> Configuration? {
+        cachedConfigurationsByIdentifierLock.lock()
+        defer { cachedConfigurationsByIdentifierLock.unlock() }
+        return cachedConfigurationsByIdentifier[identifier]
     }
 
     /// Returns a copy of the current `Configuration` with its `computedCacheDescription` property set to the value of
     /// `cacheDescription`, which is expensive to compute.
+    ///
+    /// - returns: A new `Configuration` value.
     public func withPrecomputedCacheDescription() -> Configuration {
         var result = self
         result.computedCacheDescription = result.cacheDescription
         return result
     }
 
-    // MARK: SwiftLint Cache (On-Disk)
+    // MARK: Nested Config Is Self Cache
+    private static var nestedConfigIsSelfByIdentifier = [String: Bool]()
+    private static var nestedConfigIsSelfByIdentifierLock = NSLock()
 
+    internal static func setIsNestedConfigurationSelf(forIdentifier identifier: String, value: Bool) {
+        Self.nestedConfigIsSelfByIdentifierLock.lock()
+        Self.nestedConfigIsSelfByIdentifier[identifier] = value
+        Self.nestedConfigIsSelfByIdentifierLock.unlock()
+    }
+
+    internal static func getIsNestedConfigurationSelf(forIdentifier identifier: String) -> Bool? {
+        Self.nestedConfigIsSelfByIdentifierLock.lock()
+        defer { Self.nestedConfigIsSelfByIdentifierLock.unlock() }
+        return Self.nestedConfigIsSelfByIdentifier[identifier]
+    }
+
+    // MARK: SwiftLint Cache (On-Disk)
     internal var cacheDescription: String {
         if let computedCacheDescription = computedCacheDescription {
             return computedCacheDescription
         }
 
         let cacheRulesDescriptions = rules
-            .map { rule in
-                return [type(of: rule).description.identifier, rule.cacheDescription]
-            }
-            .sorted { rule1, rule2 in
-                return rule1[0] < rule2[0]
-            }
-        let jsonObject: [Any] = [
-            rootPath ?? FileManager.default.currentDirectoryPath,
-            cacheRulesDescriptions
-        ]
+            .map { rule in [type(of: rule).description.identifier, rule.cacheDescription] }
+            .sorted { $0[0] < $1[0] }
+        let jsonObject: [Any] = [rootDirectory, cacheRulesDescriptions]
         if let jsonData = try? JSONSerialization.data(withJSONObject: jsonObject),
             let jsonString = String(data: jsonData, encoding: .utf8) {
             return jsonString.md5()

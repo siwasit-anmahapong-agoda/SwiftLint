@@ -164,7 +164,7 @@ class IndentationWidthRuleTests: XCTestCase {
 
     // MARK: Helpers
     private func countViolations(
-        in string: String,
+        in example: Example,
         indentationWidth: Int? = nil,
         includeComments: Bool? = nil,
         file: StaticString = #file,
@@ -175,11 +175,11 @@ class IndentationWidthRuleTests: XCTestCase {
         if let includeComments = includeComments { configDict["include_comments"] = includeComments }
 
         guard let config = makeConfig(configDict, IndentationWidthRule.description.identifier) else {
-            XCTFail("Unable to create rule configuration.", file: file, line: line)
+            XCTFail("Unable to create rule configuration.", file: (file), line: line)
             return 0
         }
 
-        return violations("\(string)\n", config: config).count
+        return violations(example.with(code: example.code + "\n"), config: config).count
     }
 
     private func assertViolations(
@@ -192,14 +192,14 @@ class IndentationWidthRuleTests: XCTestCase {
     ) {
         XCTAssertEqual(
             countViolations(
-                in: string,
+                in: Example(string, file: (file), line: line),
                 indentationWidth: indentationWidth,
                 includeComments: includeComments,
                 file: file,
                 line: line
             ),
             expectedCount,
-            file: file,
+            file: (file),
             line: line
         )
     }

@@ -11,44 +11,44 @@ public struct LowerACLThanParentRule: OptInRule, ConfigurationProviderRule, Auto
         description: "Ensure definitions have a lower access control level than their enclosing parent",
         kind: .lint,
         nonTriggeringExamples: [
-            "public struct Foo { public func bar() {} }",
-            "internal struct Foo { func bar() {} }",
-            "struct Foo { func bar() {} }",
-            "open class Foo { public func bar() {} }",
-            "open class Foo { open func bar() {} }",
-            "fileprivate struct Foo { private func bar() {} }",
-            "private struct Foo { private func bar(id: String) }",
-            "extension Foo { public func bar() {} }",
-            "private struct Foo { fileprivate func bar() {} }",
-            "private func foo(id: String) {}",
-            "private class Foo { func bar() {} }"
+            Example("public struct Foo { public func bar() {} }"),
+            Example("internal struct Foo { func bar() {} }"),
+            Example("struct Foo { func bar() {} }"),
+            Example("open class Foo { public func bar() {} }"),
+            Example("open class Foo { open func bar() {} }"),
+            Example("fileprivate struct Foo { private func bar() {} }"),
+            Example("private struct Foo { private func bar(id: String) }"),
+            Example("extension Foo { public func bar() {} }"),
+            Example("private struct Foo { fileprivate func bar() {} }"),
+            Example("private func foo(id: String) {}"),
+            Example("private class Foo { func bar() {} }")
         ],
         triggeringExamples: [
-            "struct Foo { public ↓func bar() {} }",
-            "enum Foo { public ↓func bar() {} }",
-            "public class Foo { open ↓func bar() }",
-            "class Foo { public private(set) ↓var bar: String? }",
-            "private class Foo { internal ↓func bar() {} }"
+            Example("struct Foo { public ↓func bar() {} }"),
+            Example("enum Foo { public ↓func bar() {} }"),
+            Example("public class Foo { open ↓func bar() }"),
+            Example("class Foo { public private(set) ↓var bar: String? }"),
+            Example("private class Foo { internal ↓func bar() {} }")
         ]
     )
 
     public func validate(file: SwiftLintFile) -> [StyleViolation] {
         return validateACL(isHigherThan: .open, in: file.structureDictionary).map {
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severity,
                            location: Location(file: file, byteOffset: $0))
         }
     }
 
     private func validateACL(isHigherThan parentAccessibility: AccessControlLevel,
-                             in substructure: SourceKittenDictionary) -> [Int] {
-        return substructure.substructure.flatMap { element -> [Int] in
+                             in substructure: SourceKittenDictionary) -> [ByteCount] {
+        return substructure.substructure.flatMap { element -> [ByteCount] in
             guard let elementKind = element.declarationKind,
                 elementKind.isRelevantDeclaration else {
                 return []
             }
 
-            var violationOffset: Int?
+            var violationOffset: ByteCount?
             let accessibility = element.accessibility ?? .internal
             // Swift 5 infers members of private types with no explicit ACL attribute to be `internal`.
             let isInferredACL = accessibility == .internal && !element.enclosedSwiftAttributes.contains(.internal)

@@ -12,30 +12,35 @@ public struct LetVarWhitespaceRule: ConfigurationProviderRule, OptInRule, Automa
         description: "Let and var should be separated from other statements by a blank line.",
         kind: .style,
         nonTriggeringExamples: [
-            "let a = 0\nvar x = 1\n\nx = 2\n",
-            "a = 5\n\nvar x = 1\n",
-            "struct X {\n\tvar a = 0\n}\n",
-            "let a = 1 +\n\t2\nlet b = 5\n",
-            "var x: Int {\n\treturn 0\n}\n",
-            "var x: Int {\n\tlet a = 0\n\n\treturn a\n}\n",
-            "#if os(macOS)\nlet a = 0\n#endif\n",
-            "#warning(\"TODO: remove it\")\nlet a = 0\n",
-            "#error(\"TODO: remove it\")\nlet a = 0\n",
-            "@available(swift 4)\nlet a = 0\n",
-            "class C {\n\t@objc\n\tvar s: String = \"\"\n}",
-            "class C {\n\t@objc\n\tfunc a() {}\n}",
-            "class C {\n\tvar x = 0\n\tlazy\n\tvar y = 0\n}\n",
-            "@available(OSX, introduced: 10.6)\n@available(*, deprecated)\nvar x = 0\n",
-            "// swiftlint:disable superfluous_disable_command\n// swiftlint:disable force_cast\n\nlet x = bar as! Bar",
-            "var x: Int {\n\tlet a = 0\n\treturn a\n}\n" // don't trigger on local vars
+            Example("let a = 0\nvar x = 1\n\nx = 2\n"),
+            Example("a = 5\n\nvar x = 1\n"),
+            Example("struct X {\n\tvar a = 0\n}\n"),
+            Example("let a = 1 +\n\t2\nlet b = 5\n"),
+            Example("var x: Int {\n\treturn 0\n}\n"),
+            Example("var x: Int {\n\tlet a = 0\n\n\treturn a\n}\n"),
+            Example("#if os(macOS)\nlet a = 0\n#endif\n"),
+            Example("#warning(\"TODO: remove it\")\nlet a = 0\n"),
+            Example("#error(\"TODO: remove it\")\nlet a = 0\n"),
+            Example("@available(swift 4)\nlet a = 0\n"),
+            Example("class C {\n\t@objc\n\tvar s: String = \"\"\n}"),
+            Example("class C {\n\t@objc\n\tfunc a() {}\n}"),
+            Example("class C {\n\tvar x = 0\n\tlazy\n\tvar y = 0\n}\n"),
+            Example("@available(OSX, introduced: 10.6)\n@available(*, deprecated)\nvar x = 0\n"),
+            Example("""
+            // swiftlint:disable superfluous_disable_command
+            // swiftlint:disable force_cast
+
+            let x = bar as! Bar
+            """),
+            Example("var x: Int {\n\tlet a = 0\n\treturn a\n}\n") // don't trigger on local vars
         ],
         triggeringExamples: [
-            "var x = 1\n↓x = 2\n",
-            "\na = 5\n↓var x = 1\n",
-            "struct X {\n\tlet a\n\t↓func x() {}\n}\n",
-            "var x = 0\n↓@objc func f() {}\n",
-            "var x = 0\n↓@objc\n\tfunc f() {}\n",
-            "@objc func f() {\n}\n↓var x = 0\n"
+            Example("var x = 1\n↓x = 2\n"),
+            Example("\na = 5\n↓var x = 1\n"),
+            Example("struct X {\n\tlet a\n\t↓func x() {}\n}\n"),
+            Example("var x = 0\n↓@objc func f() {}\n"),
+            Example("var x = 0\n↓@objc\n\tfunc f() {}\n"),
+            Example("@objc func f() {\n}\n↓var x = 0\n")
         ]
     )
 
@@ -58,7 +63,7 @@ public struct LetVarWhitespaceRule: ConfigurationProviderRule, OptInRule, Automa
             }
 
             let trimmed = line.content.trimmingCharacters(in: .whitespaces)
-            guard !trimmed.isEmpty else {
+            guard trimmed.isNotEmpty else {
                 continue
             }
 
@@ -112,14 +117,15 @@ public struct LetVarWhitespaceRule: ConfigurationProviderRule, OptInRule, Automa
         let offset = content.distance(from: content.startIndex, to: startIndex)
         let location = Location(file: file, characterOffset: offset + file.lines[line].range.location)
 
-        violations.append(StyleViolation(ruleDescription: LetVarWhitespaceRule.description,
+        violations.append(StyleViolation(ruleDescription: Self.description,
                                          severity: configuration.severity,
                                          location: location))
     }
 
     private func lineOffsets(file: SwiftLintFile, statement: SourceKittenDictionary) -> (Int, Int)? {
         guard let offset = statement.offset,
-              let length = statement.length else {
+              let length = statement.length
+        else {
             return nil
         }
         let startLine = file.line(byteOffset: offset)
@@ -172,7 +178,7 @@ public struct LetVarWhitespaceRule: ConfigurationProviderRule, OptInRule, Automa
 
             let substructure = statement.substructure
 
-            if !substructure.isEmpty {
+            if substructure.isNotEmpty {
                 varLetLineNumbers(file: file,
                                   structure: substructure,
                                   attributeLines: &attributeLines,
@@ -230,7 +236,7 @@ private extension SwiftDeclarationKind {
 
 private extension SwiftLintFile {
     // Zero based line number for specified byte offset
-    func line(byteOffset: Int) -> Int {
+    func line(byteOffset: ByteCount) -> Int {
         let lineIndex = lines.firstIndexAssumingSorted { line in
             return line.byteRange.location > byteOffset
         }

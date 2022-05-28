@@ -10,9 +10,8 @@ public struct LegacyHashingRule: ASTRule, ConfigurationProviderRule, AutomaticTe
         name: "Legacy Hashing",
         description: "Prefer using the `hash(into:)` function instead of overriding `hashValue`",
         kind: .idiomatic,
-        minSwiftVersion: .fourDotTwo,
         nonTriggeringExamples: [
-            """
+            Example("""
             struct Foo: Hashable {
               let bar: Int = 10
 
@@ -20,8 +19,8 @@ public struct LegacyHashingRule: ASTRule, ConfigurationProviderRule, AutomaticTe
                 hasher.combine(bar)
               }
             }
-            """,
-            """
+            """),
+            Example("""
             class Foo: Hashable {
               let bar: Int = 10
 
@@ -29,12 +28,12 @@ public struct LegacyHashingRule: ASTRule, ConfigurationProviderRule, AutomaticTe
                 hasher.combine(bar)
               }
             }
-            """,
-            """
+            """),
+            Example("""
             var hashValue: Int { return 1 }
             class Foo: Hashable { \n }
-            """,
-            """
+            """),
+            Example("""
             class Foo: Hashable {
               let bar: String = "Foo"
 
@@ -42,8 +41,8 @@ public struct LegacyHashingRule: ASTRule, ConfigurationProviderRule, AutomaticTe
                 return bar
               }
             }
-            """,
-            """
+            """),
+            Example("""
             class Foo: Hashable {
               let bar: String = "Foo"
 
@@ -52,10 +51,10 @@ public struct LegacyHashingRule: ASTRule, ConfigurationProviderRule, AutomaticTe
                 set { bar = newValue }
               }
             }
-            """
+            """)
         ],
         triggeringExamples: [
-            """
+            Example("""
             struct Foo: Hashable {
                 let bar: Int = 10
 
@@ -63,8 +62,8 @@ public struct LegacyHashingRule: ASTRule, ConfigurationProviderRule, AutomaticTe
                     return bar
                 }
             }
-            """,
-            """
+            """),
+            Example("""
             class Foo: Hashable {
                 let bar: Int = 10
 
@@ -72,7 +71,7 @@ public struct LegacyHashingRule: ASTRule, ConfigurationProviderRule, AutomaticTe
                     return bar
                 }
             }
-            """
+            """)
         ]
     )
 
@@ -89,7 +88,7 @@ public struct LegacyHashingRule: ASTRule, ConfigurationProviderRule, AutomaticTe
                 return []
         }
 
-        return [StyleViolation(ruleDescription: type(of: self).description,
+        return [StyleViolation(ruleDescription: Self.description,
                                severity: configuration.severity,
                                location: Location(file: file, byteOffset: offset))]
     }

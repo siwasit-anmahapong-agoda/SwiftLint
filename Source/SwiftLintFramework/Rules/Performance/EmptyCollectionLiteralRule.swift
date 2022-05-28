@@ -11,20 +11,20 @@ public struct EmptyCollectionLiteralRule: ConfigurationProviderRule, OptInRule, 
         description: "Prefer checking `isEmpty` over comparing collection to an empty array or dictionary literal.",
         kind: .performance,
         nonTriggeringExamples: [
-            "myArray = []",
-            "myArray.isEmpty",
-            "!myArray.isEmpy",
-            "myDict = [:]"
+            Example("myArray = []"),
+            Example("myArray.isEmpty"),
+            Example("!myArray.isEmpty"),
+            Example("myDict = [:]")
         ],
         triggeringExamples: [
-            "myArray↓ == []",
-            "myArray↓ != []",
-            "myArray↓ == [ ]",
-            "myDict↓ == [:]",
-            "myDict↓ != [:]",
-            "myDict↓ == [: ]",
-            "myDict↓ == [ :]",
-            "myDict↓ == [ : ]"
+            Example("myArray↓ == []"),
+            Example("myArray↓ != []"),
+            Example("myArray↓ == [ ]"),
+            Example("myDict↓ == [:]"),
+            Example("myDict↓ != [:]"),
+            Example("myDict↓ == [: ]"),
+            Example("myDict↓ == [ :]"),
+            Example("myDict↓ == [ : ]")
         ]
     )
 
@@ -32,7 +32,7 @@ public struct EmptyCollectionLiteralRule: ConfigurationProviderRule, OptInRule, 
         let pattern = "\\b\\s*(==|!=)\\s*\\[\\s*:?\\s*\\]"
         let excludingKinds = SyntaxKind.commentAndStringKinds
         return file.match(pattern: pattern, excludingSyntaxKinds: excludingKinds).map {
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severity,
                            location: Location(file: file, characterOffset: $0.location))
         }

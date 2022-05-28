@@ -11,15 +11,15 @@ public struct NoGroupingExtensionRule: OptInRule, ConfigurationProviderRule, Aut
         description: "Extensions shouldn't be used to group code within the same source file.",
         kind: .idiomatic,
         nonTriggeringExamples: [
-            "protocol Food {}\nextension Food {}\n",
-            "class Apples {}\nextension Oranges {}\n",
-            "class Box<T> {}\nextension Box where T: Vegetable {}\n"
+            Example("protocol Food {}\nextension Food {}\n"),
+            Example("class Apples {}\nextension Oranges {}\n"),
+            Example("class Box<T> {}\nextension Box where T: Vegetable {}\n")
         ],
         triggeringExamples: [
-            "enum Fruit {}\n↓extension Fruit {}\n",
-            "↓extension Tea: Error {}\nstruct Tea {}\n",
-            "class Ham { class Spam {}}\n↓extension Ham.Spam {}\n",
-            "extension External { struct Gotcha {}}\n↓extension External.Gotcha {}\n"
+            Example("enum Fruit {}\n↓extension Fruit {}\n"),
+            Example("↓extension Tea: Error {}\nstruct Tea {}\n"),
+            Example("class Ham { class Spam {}}\n↓extension Ham.Spam {}\n"),
+            Example("extension External { struct Gotcha {}}\n↓extension External.Gotcha {}\n")
         ]
     )
 
@@ -38,28 +38,24 @@ public struct NoGroupingExtensionRule: OptInRule, ConfigurationProviderRule, Aut
                 return nil
             }
 
-            return StyleViolation(ruleDescription: type(of: self).description,
+            return StyleViolation(ruleDescription: Self.description,
                                   severity: configuration.severity,
                                   location: Location(file: file, byteOffset: element.offset))
         }
     }
 
     private func hasWhereClause(dictionary: SourceKittenDictionary, file: SwiftLintFile) -> Bool {
-        let contents = file.stringView
-
         guard let nameOffset = dictionary.nameOffset,
             let nameLength = dictionary.nameLength,
-            let bodyOffset = dictionary.bodyOffset else {
+            let bodyOffset = dictionary.bodyOffset,
+            case let contents = file.stringView,
+            case let rangeStart = nameOffset + nameLength,
+            case let rangeLength = bodyOffset - rangeStart,
+            let range = contents.byteRangeToNSRange(ByteRange(location: rangeStart, length: rangeLength))
+        else {
             return false
         }
 
-        let rangeStart = nameOffset + nameLength
-        let rangeLength = bodyOffset - rangeStart
-
-        guard let range = contents.byteRangeToNSRange(start: rangeStart, length: rangeLength) else {
-            return false
-        }
-
-        return !file.match(pattern: "\\bwhere\\b", with: [.keyword], range: range).isEmpty
+        return file.match(pattern: "\\bwhere\\b", with: [.keyword], range: range).isNotEmpty
     }
 }

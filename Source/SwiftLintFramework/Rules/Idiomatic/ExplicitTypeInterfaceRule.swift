@@ -12,72 +12,78 @@ public struct ExplicitTypeInterfaceRule: OptInRule, ConfigurationProviderRule {
         description: "Properties should have a type interface",
         kind: .idiomatic,
         nonTriggeringExamples: [
-            """
+            Example("""
             class Foo {
               var myVar: Int? = 0
             }
-            """,
-            """
+            """),
+            Example("""
             class Foo {
               let myVar: Int? = 0
             }
-            """,
-            """
+            """),
+            Example("""
             class Foo {
               static var myVar: Int? = 0
             }
-            """,
-            """
+            """),
+            Example("""
             class Foo {
               class var myVar: Int? = 0
             }
-            """
+            """)
         ],
         triggeringExamples: [
-            """
+            Example("""
             class Foo {
               ↓var myVar = 0
             }
-            """,
-            """
+            """),
+            Example("""
             class Foo {
               ↓let mylet = 0
             }
-            """,
-            """
+            """),
+            Example("""
             class Foo {
               ↓static var myStaticVar = 0
             }
-            """,
-            """
+            """),
+            Example("""
             class Foo {
               ↓class var myClassVar = 0
             }
-            """,
-            """
+            """),
+            Example("""
             class Foo {
               ↓let myVar = Int(0)
             }
-            """,
-            """
+            """),
+            Example("""
             class Foo {
               ↓let myVar = Set<Int>(0)
             }
-            """
+            """)
         ]
     )
 
     public func validate(file: SwiftLintFile) -> [StyleViolation] {
-        return file.structureDictionary.traverseWithParentDepthFirst { parent, subDict in
-            guard let kind = subDict.declarationKind else { return nil }
-            return validate(file: file, kind: kind, dictionary: subDict, parentStructure: parent)
+        let captureGroupRanges = Lazy(self.captureGroupRanges(in: file))
+        return file.structureDictionary.traverseWithParentsDepthFirst { parents, subDict in
+            guard let kind = subDict.declarationKind,
+                  let parent = parents.lastIgnoringCallAndArgument() else {
+                return nil
+            }
+            return validate(file: file, kind: kind, dictionary: subDict, parentStructure: parent,
+                            captureGroupRanges: captureGroupRanges.value)
         }
     }
 
     private func validate(file: SwiftLintFile,
                           kind: SwiftDeclarationKind,
                           dictionary: SourceKittenDictionary,
-                          parentStructure: SourceKittenDictionary) -> [StyleViolation] {
+                          parentStructure: SourceKittenDictionary,
+                          captureGroupRanges: [ByteRange]) -> [StyleViolation] {
         guard configuration.allowedKinds.contains(kind),
             let offset = dictionary.offset,
             !dictionary.containsType,
@@ -87,15 +93,20 @@ public struct ExplicitTypeInterfaceRule: OptInRule, ConfigurationProviderRule {
             !parentStructure.contains([.forEach, .guard]),
             !parentStructure.caseStatementPatternRanges.contains(offset),
             !parentStructure.caseExpressionRanges.contains(offset),
-            !file.captureGroupByteRanges.contains(offset) else {
+            !captureGroupRanges.contains(offset) else {
                 return []
         }
 
         return [
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severityConfiguration.severity,
                            location: Location(file: file, byteOffset: offset))
         ]
+    }
+
+    private func captureGroupRanges(in file: SwiftLintFile) -> [ByteRange] {
+        return file.match(pattern: "\\{\\s*\\[(\\s*\\w+\\s+\\w+,*)+\\]", excludingSyntaxKinds: SyntaxKind.commentKinds)
+            .compactMap { file.stringView.NSRangeToByteRange(start: $0.location, length: $0.length) }
     }
 }
 
@@ -108,7 +119,8 @@ private extension SourceKittenDictionary {
         guard
             let nameOffset = nameOffset,
             let nameLength = nameLength,
-            let afterNameRange = file.stringView.byteRangeToNSRange(start: nameOffset + nameLength, length: 0)
+            case let afterNameByteRange = ByteRange(location: nameOffset + nameLength, length: 0),
+            let afterNameRange = file.stringView.byteRangeToNSRange(afterNameByteRange)
         else {
             return false
         }
@@ -125,7 +137,8 @@ private extension SourceKittenDictionary {
         guard
             let nameOffset = nameOffset,
             let nameLength = nameLength,
-            let afterNameRange = file.stringView.byteRangeToNSRange(start: nameOffset + nameLength, length: 0)
+            case let afterNameByteRange = ByteRange(location: nameOffset + nameLength, length: 0),
+            let afterNameRange = file.stringView.byteRangeToNSRange(afterNameByteRange)
         else {
             return false
         }
@@ -137,11 +150,11 @@ private extension SourceKittenDictionary {
         return typeAssignment.firstMatch(in: contentAfterName, options: [], range: contentAfterName.fullNSRange) != nil
     }
 
-    var caseStatementPatternRanges: [NSRange] {
+    var caseStatementPatternRanges: [ByteRange] {
         return ranges(with: StatementKind.case.rawValue, for: "source.lang.swift.structure.elem.pattern")
     }
 
-    var caseExpressionRanges: [NSRange] {
+    var caseExpressionRanges: [ByteRange] {
         return ranges(with: SwiftExpressionKind.tuple.rawValue, for: "source.lang.swift.structure.elem.expr")
     }
 
@@ -152,30 +165,70 @@ private extension SourceKittenDictionary {
         return statements.contains(statement)
     }
 
-    func ranges(with parentKind: String, for elementKind: String) -> [NSRange] {
+    func ranges(with parentKind: String, for elementKind: String) -> [ByteRange] {
         guard parentKind == kind else {
             return []
         }
 
         return elements
             .filter { elementKind == $0.kind }
-            .compactMap {
-                guard let location = $0.offset, let length = $0.length else { return nil }
-                return NSRange(location: location, length: length)
-            }
+            .compactMap { $0.byteRange }
     }
 }
 
-private extension SwiftLintFile {
-    var captureGroupByteRanges: [NSRange] {
-        return match(pattern: "\\{\\s*\\[(\\s*\\w+\\s+\\w+,*)+\\]",
-                     excludingSyntaxKinds: SyntaxKind.commentKinds)
-                .compactMap { stringView.NSRangeToByteRange(start: $0.location, length: $0.length) }
-    }
-}
-
-private extension Collection where Element == NSRange {
-    func contains(_ index: Int) -> Bool {
+private extension Collection where Element == ByteRange {
+    func contains(_ index: ByteCount) -> Bool {
         return contains { $0.contains(index) }
+    }
+}
+
+private extension SourceKittenDictionary {
+    func traverseWithParentsDepthFirst<T>(traverseBlock: ([SourceKittenDictionary], SourceKittenDictionary) -> [T]?)
+        -> [T] {
+        var result: [T] = []
+        traverseWithParentDepthFirst(collectingValuesInto: &result,
+                                     parents: [],
+                                     traverseBlock: traverseBlock)
+        return result
+    }
+
+    private func traverseWithParentDepthFirst<T>(
+        collectingValuesInto array: inout [T],
+        parents: [SourceKittenDictionary],
+        traverseBlock: ([SourceKittenDictionary], SourceKittenDictionary) -> [T]?) {
+        var updatedParents = parents
+        updatedParents.append(self)
+
+        substructure.forEach { subDict in
+            subDict.traverseWithParentDepthFirst(collectingValuesInto: &array,
+                                                 parents: updatedParents,
+                                                 traverseBlock: traverseBlock)
+
+            if let collectedValues = traverseBlock(updatedParents, subDict) {
+                array += collectedValues
+            }
+        }
+    }
+}
+
+private extension Array where Element == SourceKittenDictionary {
+    func lastIgnoringCallAndArgument() -> Element? {
+        guard SwiftVersion.current >= .fiveDotFour else {
+            return last
+        }
+
+        return last { element in
+            element.expressionKind != .call && element.expressionKind != .argument
+        }
+    }
+}
+
+// extracted from https://forums.swift.org/t/pitch-declaring-local-variables-as-lazy/9287/3
+private class Lazy<Result> {
+    private var computation: () -> Result
+    fileprivate private(set) lazy var value: Result = computation()
+
+    init(_ computation: @escaping @autoclosure () -> Result) {
+        self.computation = computation
     }
 }

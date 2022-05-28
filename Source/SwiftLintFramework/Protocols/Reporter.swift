@@ -19,6 +19,8 @@ public protocol Reporter: CustomStringConvertible {
 /// known reporters.
 ///
 /// - parameter identifier: The identifier corresponding to the reporter.
+///
+/// - returns: The reporter type.
 public func reporterFrom(identifier: String) -> Reporter.Type { // swiftlint:disable:this cyclomatic_complexity
     switch identifier {
     case XcodeReporter.identifier:
@@ -41,6 +43,10 @@ public func reporterFrom(identifier: String) -> Reporter.Type { // swiftlint:dis
         return MarkdownReporter.self
     case GitHubActionsLoggingReporter.identifier:
         return GitHubActionsLoggingReporter.self
+    case GitLabJUnitReporter.identifier:
+        return GitLabJUnitReporter.self
+    case CodeClimateReporter.identifier:
+        return CodeClimateReporter.self
     default:
         queuedFatalError("no reporter with identifier '\(identifier)' available.")
     }

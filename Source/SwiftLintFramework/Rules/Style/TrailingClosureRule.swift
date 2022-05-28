@@ -12,35 +12,35 @@ public struct TrailingClosureRule: OptInRule, ConfigurationProviderRule {
         description: "Trailing closure syntax should be used whenever possible.",
         kind: .style,
         nonTriggeringExamples: [
-            "foo.map { $0 + 1 }\n",
-            "foo.bar()\n",
-            "foo.reduce(0) { $0 + 1 }\n",
-            "if let foo = bar.map({ $0 + 1 }) { }\n",
-            "foo.something(param1: { $0 }, param2: { $0 + 1 })\n",
-            "offsets.sorted { $0.offset < $1.offset }\n",
-            "foo.something({ return 1 }())",
-            "foo.something({ return $0 }(1))",
-            "foo.something(0, { return 1 }())"
+            Example("foo.map { $0 + 1 }\n"),
+            Example("foo.bar()\n"),
+            Example("foo.reduce(0) { $0 + 1 }\n"),
+            Example("if let foo = bar.map({ $0 + 1 }) { }\n"),
+            Example("foo.something(param1: { $0 }, param2: { $0 + 1 })\n"),
+            Example("offsets.sorted { $0.offset < $1.offset }\n"),
+            Example("foo.something({ return 1 }())"),
+            Example("foo.something({ return $0 }(1))"),
+            Example("foo.something(0, { return 1 }())")
         ],
         triggeringExamples: [
-            "↓foo.map({ $0 + 1 })\n",
-            "↓foo.reduce(0, combine: { $0 + 1 })\n",
-            "↓offsets.sorted(by: { $0.offset < $1.offset })\n",
-            "↓foo.something(0, { $0 + 1 })\n"
+            Example("↓foo.map({ $0 + 1 })\n"),
+            Example("↓foo.reduce(0, combine: { $0 + 1 })\n"),
+            Example("↓offsets.sorted(by: { $0.offset < $1.offset })\n"),
+            Example("↓foo.something(0, { $0 + 1 })\n")
         ]
     )
 
     public func validate(file: SwiftLintFile) -> [StyleViolation] {
         let dict = file.structureDictionary
         return violationOffsets(for: dict, file: file).map {
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severityConfiguration.severity,
                            location: Location(file: file, byteOffset: $0))
         }
     }
 
-    private func violationOffsets(for dictionary: SourceKittenDictionary, file: SwiftLintFile) -> [Int] {
-        var results = [Int]()
+    private func violationOffsets(for dictionary: SourceKittenDictionary, file: SwiftLintFile) -> [ByteCount] {
+        var results = [ByteCount]()
 
         if dictionary.expressionKind == .call,
             shouldBeTrailingClosure(dictionary: dictionary, file: file),
@@ -50,7 +50,7 @@ public struct TrailingClosureRule: OptInRule, ConfigurationProviderRule {
 
         if let kind = dictionary.statementKind, kind != .brace {
             // trailing closures are not allowed in `if`, `guard`, etc
-            results += dictionary.substructure.flatMap { subDict -> [Int] in
+            results += dictionary.substructure.flatMap { subDict -> [ByteCount] in
                 guard subDict.statementKind == .brace else {
                     return []
                 }
@@ -75,22 +75,31 @@ public struct TrailingClosureRule: OptInRule, ConfigurationProviderRule {
         let arguments = dictionary.enclosedArguments
 
         // check if last parameter should be trailing closure
-        if !configuration.onlySingleMutedParameter, !arguments.isEmpty,
+        if !configuration.onlySingleMutedParameter, arguments.isNotEmpty,
             case let closureArguments = filterClosureArguments(arguments, file: file),
             closureArguments.count == 1,
             closureArguments.last?.offset == arguments.last?.offset {
             return shouldTrigger()
         }
 
+        let argumentsCountIsExpected: Bool = {
+            if SwiftVersion.current >= .fiveDotSix, arguments.count == 1,
+               arguments[0].expressionKind == .argument {
+                return true
+            }
+
+            return arguments.isEmpty
+        }()
         // check if there's only one unnamed parameter that is a closure
-        if arguments.isEmpty,
+        if argumentsCountIsExpected,
             let offset = dictionary.offset,
             let totalLength = dictionary.length,
             let nameOffset = dictionary.nameOffset,
             let nameLength = dictionary.nameLength,
             case let start = nameOffset + nameLength,
             case let length = totalLength + offset - start,
-            let range = file.stringView.byteRangeToNSRange(start: start, length: length),
+            case let byteRange = ByteRange(location: start, length: length),
+            let range = file.stringView.byteRangeToNSRange(byteRange),
             let match = regex("\\s*\\(\\s*\\{").firstMatch(in: file.contents, options: [], range: range)?.range,
             match.location == range.location {
             return shouldTrigger()
@@ -102,12 +111,12 @@ public struct TrailingClosureRule: OptInRule, ConfigurationProviderRule {
     private func filterClosureArguments(_ arguments: [SourceKittenDictionary],
                                         file: SwiftLintFile) -> [SourceKittenDictionary] {
         return arguments.filter { argument in
-            guard let offset = argument.bodyOffset,
-                let length = argument.bodyLength,
-                let range = file.stringView.byteRangeToNSRange(start: offset, length: length),
+            guard let bodyByteRange = argument.bodyByteRange,
+                let range = file.stringView.byteRangeToNSRange(bodyByteRange),
                 let match = regex("\\s*\\{").firstMatch(in: file.contents, options: [], range: range)?.range,
-                match.location == range.location else {
-                    return false
+                match.location == range.location
+            else {
+                return false
             }
 
             return true
@@ -115,21 +124,20 @@ public struct TrailingClosureRule: OptInRule, ConfigurationProviderRule {
     }
 
     private func isAlreadyTrailingClosure(dictionary: SourceKittenDictionary, file: SwiftLintFile) -> Bool {
-        guard let offset = dictionary.offset,
-            let length = dictionary.length,
-            let text = file.stringView.substringWithByteRange(start: offset, length: length) else {
-                return false
+        guard let byteRange = dictionary.byteRange,
+            let text = file.stringView.substringWithByteRange(byteRange)
+        else {
+            return false
         }
 
         return !text.hasSuffix(")")
     }
 
-    private func isAnonymousClosureCall(dictionary: SourceKittenDictionary,
-                                        file: SwiftLintFile) -> Bool {
-        guard let offset = dictionary.offset,
-            let length = dictionary.length,
-            let range = file.stringView.byteRangeToNSRange(start: offset, length: length) else {
-                return false
+    private func isAnonymousClosureCall(dictionary: SourceKittenDictionary, file: SwiftLintFile) -> Bool {
+        guard let byteRange = dictionary.byteRange,
+            let range = file.stringView.byteRangeToNSRange(byteRange)
+        else {
+            return false
         }
 
         let pattern = regex("\\)\\s*\\)\\z")

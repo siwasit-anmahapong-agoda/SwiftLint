@@ -12,16 +12,16 @@ public struct DynamicInlineRule: ASTRule, ConfigurationProviderRule, AutomaticTe
         description: "Avoid using 'dynamic' and '@inline(__always)' together.",
         kind: .lint,
         nonTriggeringExamples: [
-            "class C {\ndynamic func f() {}}",
-            "class C {\n@inline(__always) func f() {}}",
-            "class C {\n@inline(never) dynamic func f() {}}"
+            Example("class C {\ndynamic func f() {}}"),
+            Example("class C {\n@inline(__always) func f() {}}"),
+            Example("class C {\n@inline(never) dynamic func f() {}}")
         ],
         triggeringExamples: [
-            "class C {\n@inline(__always) dynamic ↓func f() {}\n}",
-            "class C {\n@inline(__always) public dynamic ↓func f() {}\n}",
-            "class C {\n@inline(__always) dynamic internal ↓func f() {}\n}",
-            "class C {\n@inline(__always)\ndynamic ↓func f() {}\n}",
-            "class C {\n@inline(__always)\ndynamic\n↓func f() {}\n}"
+            Example("class C {\n@inline(__always) dynamic ↓func f() {}\n}"),
+            Example("class C {\n@inline(__always) public dynamic ↓func f() {}\n}"),
+            Example("class C {\n@inline(__always) dynamic internal ↓func f() {}\n}"),
+            Example("class C {\n@inline(__always)\ndynamic ↓func f() {}\n}"),
+            Example("class C {\n@inline(__always)\ndynamic\n↓func f() {}\n}")
         ]
     )
 
@@ -34,9 +34,7 @@ public struct DynamicInlineRule: ASTRule, ConfigurationProviderRule, AutomaticTe
             case let attributes = dictionary.enclosedSwiftAttributes,
             attributes.contains(.dynamic),
             attributes.contains(.inline),
-            let funcByteOffset = dictionary.offset,
-            let funcOffset = file.stringView
-                .byteRangeToNSRange(start: funcByteOffset, length: 0)?.location,
+            let funcOffset = dictionary.offset.flatMap(file.stringView.location),
             case let inlinePattern = regex("@inline"),
             case let range = NSRange(location: 0, length: funcOffset),
             let inlineMatch = inlinePattern.matches(in: file.contents, options: [], range: range)
@@ -49,7 +47,7 @@ public struct DynamicInlineRule: ASTRule, ConfigurationProviderRule, AutomaticTe
         else {
             return []
         }
-        return [StyleViolation(ruleDescription: type(of: self).description,
+        return [StyleViolation(ruleDescription: Self.description,
                                severity: configuration.severity,
                                location: Location(file: file, characterOffset: funcOffset))]
     }

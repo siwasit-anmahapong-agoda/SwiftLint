@@ -13,15 +13,15 @@ public struct TrailingWhitespaceRule: CorrectableRule, ConfigurationProviderRule
         description: "Lines should not have trailing whitespace.",
         kind: .style,
         nonTriggeringExamples: [
-            "let name: String\n", "//\n", "// \n",
-            "let name: String //\n", "let name: String // \n"
+            Example("let name: String\n"), Example("//\n"), Example("// \n"),
+            Example("let name: String //\n"), Example("let name: String // \n")
         ],
         triggeringExamples: [
-            "let name: String \n", "/* */ let name: String \n"
+            Example("let name: String \n"), Example("/* */ let name: String \n")
         ],
         corrections: [
-            "let name: String \n": "let name: String\n",
-            "/* */ let name: String \n": "/* */ let name: String\n"
+            Example("let name: String \n"): Example("let name: String\n"),
+            Example("/* */ let name: String \n"): Example("/* */ let name: String\n")
         ]
     )
 
@@ -38,11 +38,11 @@ public struct TrailingWhitespaceRule: CorrectableRule, ConfigurationProviderRule
 
             return !configuration.ignoresEmptyLines ||
                     // If configured, ignore lines that contain nothing but whitespace (empty lines)
-                    !$0.content.trimmingCharacters(in: .whitespaces).isEmpty
+                    $0.content.trimmingCharacters(in: .whitespaces).isNotEmpty
         }
 
         return filteredLines.map {
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severityConfiguration.severity,
                            location: Location(file: file.path, line: $0.index))
         }
@@ -80,13 +80,13 @@ public struct TrailingWhitespaceRule: CorrectableRule, ConfigurationProviderRule
             }
 
             if line.content != correctedLine {
-                let description = type(of: self).description
+                let description = Self.description
                 let location = Location(file: file.path, line: line.index)
                 corrections.append(Correction(ruleDescription: description, location: location))
             }
             correctedLines.append(correctedLine)
         }
-        if !corrections.isEmpty {
+        if corrections.isNotEmpty {
             // join and re-add trailing newline
             file.write(correctedLines.joined(separator: "\n") + "\n")
             return corrections

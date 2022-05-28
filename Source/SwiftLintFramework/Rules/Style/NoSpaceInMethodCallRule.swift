@@ -12,33 +12,42 @@ public struct NoSpaceInMethodCallRule: SubstitutionCorrectableASTRule, Configura
         name: "No Space in Method Call",
         description: "Don't add a space between the method name and the parentheses.",
         kind: .style,
-        minSwiftVersion: .fourDotTwo,
-        nonTriggeringExamples: [
-            "foo()",
-            "object.foo()",
-            "object.foo(1)",
-            "object.foo(value: 1)",
-            "object.foo { print($0 }",
-            "list.sorted { $0.0 < $1.0 }.map { $0.value }",
-            "self.init(rgb: (Int) (colorInt))"
-        ],
+        nonTriggeringExamples: nonTriggeringExamples,
         triggeringExamples: [
-            "foo↓ ()",
-            "object.foo↓ ()",
-            "object.foo↓ (1)",
-            "object.foo↓ (value: 1)",
-            "object.foo↓ () {}",
-            "object.foo↓     ()"
+            Example("foo↓ ()"),
+            Example("object.foo↓ ()"),
+            Example("object.foo↓ (1)"),
+            Example("object.foo↓ (value: 1)"),
+            Example("object.foo↓ () {}"),
+            Example("object.foo↓     ()"),
+            Example("object.foo↓     (value: 1) { x in print(x) }")
         ],
         corrections: [
-            "foo↓ ()": "foo()",
-            "object.foo↓ ()": "object.foo()",
-            "object.foo↓ (1)": "object.foo(1)",
-            "object.foo↓ (value: 1)": "object.foo(value: 1)",
-            "object.foo↓ () {}": "object.foo() {}",
-            "object.foo↓     ()": "object.foo()"
+            Example("foo↓ ()"): Example("foo()"),
+            Example("object.foo↓ ()"): Example("object.foo()"),
+            Example("object.foo↓ (1)"): Example("object.foo(1)"),
+            Example("object.foo↓ (value: 1)"): Example("object.foo(value: 1)"),
+            Example("object.foo↓ () {}"): Example("object.foo() {}"),
+            Example("object.foo↓     ()"): Example("object.foo()")
         ]
     )
+
+    private static let nonTriggeringExamples: [Example] = [
+        Example("foo()"),
+        Example("object.foo()"),
+        Example("object.foo(1)"),
+        Example("object.foo(value: 1)"),
+        Example("object.foo { print($0 }"),
+        Example("list.sorted { $0.0 < $1.0 }.map { $0.value }"),
+        Example("self.init(rgb: (Int) (colorInt))"),
+        Example("""
+        Button {
+            print("Button tapped")
+        } label: {
+            Text("Button")
+        }
+        """)
+    ]
 
     // MARK: - ASTRule
 
@@ -46,7 +55,7 @@ public struct NoSpaceInMethodCallRule: SubstitutionCorrectableASTRule, Configura
                          kind: SwiftExpressionKind,
                          dictionary: SourceKittenDictionary) -> [StyleViolation] {
         return violationRanges(in: file, kind: kind, dictionary: dictionary).map {
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severity,
                            location: Location(file: file, characterOffset: $0.location))
         }
@@ -69,15 +78,14 @@ public struct NoSpaceInMethodCallRule: SubstitutionCorrectableASTRule, Configura
             case let nameEndPosition = nameOffset + nameLength,
             bodyOffset != nameEndPosition + 1,
             case let contents = file.stringView,
-            let range = contents.byteRangeToNSRange(start: nameEndPosition,
-                                                    length: bodyOffset - nameEndPosition - 1) else {
-                return []
+            case let byteRange = ByteRange(location: nameEndPosition, length: bodyOffset - nameEndPosition - 1),
+            let range = contents.byteRangeToNSRange(byteRange)
+        else {
+            return []
         }
 
         // Don't trigger if it's a single parameter trailing closure without parens
-        if let subDict = dictionary.substructure.last,
-            subDict.expressionKind == .closure,
-            let closureBodyOffset = subDict.bodyOffset,
+        if let closureBodyOffset = dictionary.substructure.lazy.compactMap({ $0.closureBodyOffset }).first,
             closureBodyOffset == bodyOffset {
             return []
         }
@@ -88,5 +96,19 @@ public struct NoSpaceInMethodCallRule: SubstitutionCorrectableASTRule, Configura
         }
 
         return [range]
+    }
+}
+
+private extension SourceKittenDictionary {
+    var closureBodyOffset: ByteCount? {
+        if expressionKind == .closure {
+            return bodyOffset
+        }
+
+        if expressionKind == .argument, substructure.last?.expressionKind == .closure {
+            return substructure.last?.bodyOffset
+        }
+
+        return nil
     }
 }

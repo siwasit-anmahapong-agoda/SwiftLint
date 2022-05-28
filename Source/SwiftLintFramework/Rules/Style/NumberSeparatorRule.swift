@@ -22,7 +22,7 @@ public struct NumberSeparatorRule: OptInRule, CorrectableRule, ConfigurationProv
 
     public func validate(file: SwiftLintFile) -> [StyleViolation] {
         return violatingRanges(in: file).map { range, _ in
-            return StyleViolation(ruleDescription: type(of: self).description,
+            return StyleViolation(ruleDescription: Self.description,
                                   severity: configuration.severityConfiguration.severity,
                                   location: Location(file: file, characterOffset: range.location))
         }
@@ -60,9 +60,9 @@ public struct NumberSeparatorRule: OptInRule, CorrectableRule, ConfigurationProv
             guard let integerSubstring = components.first,
                 case let (valid, expected) = isValid(number: integerSubstring, isFraction: false),
                 !valid || !validFraction,
-                let range = file.stringView.byteRangeToNSRange(start: token.offset,
-                                                               length: token.length) else {
-                                                                    return nil
+                let range = file.stringView.byteRangeToNSRange(token.range)
+            else {
+                return nil
             }
 
             var corrected = ""
@@ -103,7 +103,7 @@ public struct NumberSeparatorRule: OptInRule, CorrectableRule, ConfigurationProv
         file.write(correctedContents)
 
         return adjustedLocations.map {
-            Correction(ruleDescription: type(of: self).description,
+            Correction(ruleDescription: Self.description,
                        location: Location(file: file, characterOffset: $0))
         }
     }
@@ -142,7 +142,7 @@ public struct NumberSeparatorRule: OptInRule, CorrectableRule, ConfigurationProv
             defer { correctComponents.append(String(char)) }
             guard char.unicodeScalars.allSatisfy(CharacterSet.decimalDigits.contains) else { continue }
 
-            if numerals % 3 == 0 && numerals > 0 && shouldAddSeparators {
+            if numerals.isMultiple(of: 3) && numerals > 0 && shouldAddSeparators {
                 correctComponents.append("_")
             }
             numerals += 1

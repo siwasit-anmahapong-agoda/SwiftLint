@@ -14,21 +14,23 @@ public struct RedundantNilCoalescingRule: OptInRule, SubstitutionCorrectableRule
             ", coalescing operator with nil as rhs is redundant",
         kind: .idiomatic,
         nonTriggeringExamples: [
-            "var myVar: Int?; myVar ?? 0\n"
+            Example("var myVar: Int?; myVar ?? 0\n")
         ],
         triggeringExamples: [
-            "var myVar: Int? = nil; myVar↓ ?? nil\n",
-            "var myVar: Int? = nil; myVar↓??nil\n"
+            Example("var myVar: Int? = nil; myVar↓ ?? nil\n"),
+            Example("var myVar: Int? = nil; myVar↓??nil\n")
         ],
         corrections: [
-            "var myVar: Int? = nil; let foo = myVar↓ ?? nil\n": "var myVar: Int? = nil; let foo = myVar\n",
-            "var myVar: Int? = nil; let foo = myVar↓??nil\n": "var myVar: Int? = nil; let foo = myVar\n"
+            Example("var myVar: Int? = nil; let foo = myVar↓ ?? nil\n"):
+                Example("var myVar: Int? = nil; let foo = myVar\n"),
+            Example("var myVar: Int? = nil; let foo = myVar↓??nil\n"):
+                Example("var myVar: Int? = nil; let foo = myVar\n")
         ]
     )
 
     public func validate(file: SwiftLintFile) -> [StyleViolation] {
         return violationRanges(in: file).map {
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severity,
                            location: Location(file: file, characterOffset: $0.location))
         }

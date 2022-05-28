@@ -14,20 +14,22 @@ public struct FileHeaderRule: ConfigurationProviderRule, OptInRule {
             "required and forbidden patterns. It will be replaced by the real file name.",
         kind: .style,
         nonTriggeringExamples: [
-            "let foo = \"Copyright\"",
-            "let foo = 2 // Copyright",
-            "let foo = 2\n // Copyright"
+            Example("let foo = \"Copyright\""),
+            Example("let foo = 2 // Copyright"),
+            Example("let foo = 2\n // Copyright")
         ],
         triggeringExamples: [
-            "// ↓Copyright\n",
-            "//\n// ↓Copyright",
-            "//\n" +
-            "//  FileHeaderRule.swift\n" +
-            "//  SwiftLint\n" +
-            "//\n" +
-            "//  Created by Marcelo Fabri on 27/11/16.\n" +
-            "//  ↓Copyright © 2016 Realm. All rights reserved.\n" +
-            "//"
+            Example("// ↓Copyright\n"),
+            Example("//\n// ↓Copyright"),
+            Example("""
+            //
+            //  FileHeaderRule.swift
+            //  SwiftLint
+            //
+            //  Created by Marcelo Fabri on 27/11/16.
+            //  ↓Copyright © 2016 Realm. All rights reserved.
+            //
+            """)
         ]
     )
 
@@ -63,7 +65,8 @@ public struct FileHeaderRule: ConfigurationProviderRule, OptInRule {
         if let firstToken = firstToken, let lastToken = lastToken {
             let start = firstToken.offset
             let length = lastToken.offset + lastToken.length - firstToken.offset
-            guard let range = file.stringView.byteRangeToNSRange(start: start, length: length) else {
+            let byteRange = ByteRange(location: start, length: length)
+            guard let range = file.stringView.byteRangeToNSRange(byteRange) else {
                 return []
             }
 
@@ -75,35 +78,31 @@ public struct FileHeaderRule: ConfigurationProviderRule, OptInRule {
             if let regex = requiredRegex,
                 case let matches = regex.matches(in: file.contents, options: [], range: range),
                 matches.isEmpty {
-                violationsOffsets.append(start)
+                violationsOffsets.append(file.stringView.location(fromByteOffset: start))
             }
         } else if requiredRegex != nil {
             let location = firstNonCommentToken.map {
                 Location(file: file, byteOffset: $0.offset)
             } ?? Location(file: file.path, line: 1)
-            return [
-                StyleViolation(ruleDescription: type(of: self).description,
-                               severity: configuration.severityConfiguration.severity,
-                               location: location,
-                               reason: type(of: self).reason)
-            ]
+            return [makeViolation(at: location)]
         }
 
-        return violationsOffsets.map {
-            StyleViolation(ruleDescription: type(of: self).description,
-                           severity: configuration.severityConfiguration.severity,
-                           location: Location(file: file, characterOffset: $0),
-                           reason: type(of: self).reason)
-        }
+        return violationsOffsets.map { makeViolation(at: Location(file: file, characterOffset: $0)) }
     }
 
     private func isSwiftLintCommand(token: SwiftLintSyntaxToken, file: SwiftLintFile) -> Bool {
-        guard let range = file.stringView.byteRangeToNSRange(start: token.offset,
-                                                             length: token.length) else {
-                                                                    return false
+        guard let range = file.stringView.byteRangeToNSRange(token.range) else {
+            return false
         }
 
-        return !file.commands(in: range).isEmpty
+        return file.commands(in: range).isNotEmpty
+    }
+
+    private func makeViolation(at location: Location) -> StyleViolation {
+        return StyleViolation(ruleDescription: Self.description,
+                              severity: configuration.severityConfiguration.severity,
+                              location: location,
+                              reason: Self.reason)
     }
 }
 

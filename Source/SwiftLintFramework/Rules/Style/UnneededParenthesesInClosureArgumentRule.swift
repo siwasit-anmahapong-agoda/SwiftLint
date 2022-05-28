@@ -13,18 +13,18 @@ public struct UnneededParenthesesInClosureArgumentRule: ConfigurationProviderRul
         description: "Parentheses are not needed when declaring closure arguments.",
         kind: .style,
         nonTriggeringExamples: [
-            "let foo = { (bar: Int) in }\n",
-            "let foo = { bar, _  in }\n",
-            "let foo = { bar in }\n",
-            "let foo = { bar -> Bool in return true }\n"
+            Example("let foo = { (bar: Int) in }\n"),
+            Example("let foo = { bar, _  in }\n"),
+            Example("let foo = { bar in }\n"),
+            Example("let foo = { bar -> Bool in return true }\n")
         ],
         triggeringExamples: [
-            "call(arg: { ↓(bar) in })\n",
-            "call(arg: { ↓(bar, _) in })\n",
-            "let foo = { ↓(bar) -> Bool in return true }\n",
-            "foo.map { ($0, $0) }.forEach { ↓(x, y) in }",
-            "foo.bar { [weak self] ↓(x, y) in }",
-            """
+            Example("call(arg: { ↓(bar) in })\n"),
+            Example("call(arg: { ↓(bar, _) in })\n"),
+            Example("let foo = { ↓(bar) -> Bool in return true }\n"),
+            Example("foo.map { ($0, $0) }.forEach { ↓(x, y) in }"),
+            Example("foo.bar { [weak self] ↓(x, y) in }"),
+            Example("""
             [].first { ↓(temp) in
                 [].first { ↓(temp) in
                     [].first { ↓(temp) in
@@ -35,8 +35,8 @@ public struct UnneededParenthesesInClosureArgumentRule: ConfigurationProviderRul
                 }
                 return false
             }
-            """,
-            """
+            """),
+            Example("""
             [].first { temp in
                 [].first { ↓(temp) in
                     [].first { ↓(temp) in
@@ -47,21 +47,23 @@ public struct UnneededParenthesesInClosureArgumentRule: ConfigurationProviderRul
                 }
                 return false
             }
-            """
+            """)
         ],
         corrections: [
-            "call(arg: { ↓(bar) in })\n": "call(arg: { bar in })\n",
-            "call(arg: { ↓(bar, _) in })\n": "call(arg: { bar, _ in })\n",
-            "let foo = { ↓(bar) -> Bool in return true }\n": "let foo = { bar -> Bool in return true }\n",
-            "method { ↓(foo, bar) in }\n": "method { foo, bar in }\n",
-            "foo.map { ($0, $0) }.forEach { ↓(x, y) in }": "foo.map { ($0, $0) }.forEach { x, y in }",
-            "foo.bar { [weak self] ↓(x, y) in }": "foo.bar { [weak self] x, y in }"
+            Example("call(arg: { ↓(bar) in })\n"): Example("call(arg: { bar in })\n"),
+            Example("call(arg: { ↓(bar, _) in })\n"): Example("call(arg: { bar, _ in })\n"),
+            Example("call(arg: { ↓(bar, _)in })\n"): Example("call(arg: { bar, _ in })\n"),
+            Example("let foo = { ↓(bar) -> Bool in return true }\n"):
+                Example("let foo = { bar -> Bool in return true }\n"),
+            Example("method { ↓(foo, bar) in }\n"): Example("method { foo, bar in }\n"),
+            Example("foo.map { ($0, $0) }.forEach { ↓(x, y) in }"): Example("foo.map { ($0, $0) }.forEach { x, y in }"),
+            Example("foo.bar { [weak self] ↓(x, y) in }"): Example("foo.bar { [weak self] x, y in }")
         ]
     )
 
     public func validate(file: SwiftLintFile) -> [StyleViolation] {
         return violationRanges(file: file).map {
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severity,
                            location: Location(file: file, characterOffset: $0.location))
         }
@@ -110,7 +112,13 @@ public struct UnneededParenthesesInClosureArgumentRule: ConfigurationProviderRul
                                           length: violatingRange.length - 2)
             if let indexRange = correctedContents.nsrangeToIndexRange(violatingRange),
                 let updatedRange = correctedContents.nsrangeToIndexRange(correctingRange) {
-                let updatedArguments = correctedContents[updatedRange]
+                var updatedArguments = correctedContents[updatedRange]
+                if let whiteSpaceIndex = correctedContents.index(indexRange.upperBound,
+                                                                 offsetBy: 0,
+                                                                 limitedBy: correctedContents.endIndex),
+                   !String(correctedContents[whiteSpaceIndex]).hasTrailingWhitespace() {
+                    updatedArguments += " "
+                }
                 correctedContents = correctedContents.replacingCharacters(in: indexRange,
                                                                           with: String(updatedArguments))
                 adjustedLocations.insert(violatingRange.location, at: 0)
@@ -120,7 +128,7 @@ public struct UnneededParenthesesInClosureArgumentRule: ConfigurationProviderRul
         file.write(correctedContents)
 
         return adjustedLocations.map {
-            Correction(ruleDescription: type(of: self).description,
+            Correction(ruleDescription: Self.description,
                        location: Location(file: file, characterOffset: $0))
         }
     }

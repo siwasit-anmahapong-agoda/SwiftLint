@@ -1,7 +1,8 @@
 import Foundation
 import SourceKittenFramework
 
-public struct DiscardedNotificationCenterObserverRule: ASTRule, ConfigurationProviderRule, AutomaticTestableRule {
+public struct DiscardedNotificationCenterObserverRule: ASTRule, ConfigurationProviderRule, AutomaticTestableRule,
+    OptInRule {
     public var configuration = SeverityConfiguration(.warning)
 
     public init() {}
@@ -13,42 +14,54 @@ public struct DiscardedNotificationCenterObserverRule: ASTRule, ConfigurationPro
                      "returned should be stored so it can be removed later.",
         kind: .lint,
         nonTriggeringExamples: [
-            "let foo = nc.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: nil) { }\n",
-            "let foo = nc.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: nil, using: { })\n",
-            "func foo() -> Any {\n" +
+            Example("let foo = nc.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: nil) { }\n"),
+            Example("""
+            let foo = nc.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: nil, using: { })
+            """),
+            Example("func foo() -> Any {\n" +
             "   return nc.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: nil, using: { })\n" +
-            "}\n",
-            "var obs: [Any?] = []\n" +
-            "obs.append(nc.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: nil, using: { }))\n",
-            "var obs: [String: Any?] = []\n" +
-            "obs[\"foo\"] = nc.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: nil, using: { })\n",
-            "var obs: [Any?] = []\n" +
-            "obs.append(nc.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: nil, using: { }))\n",
-            "func foo(_ notif: Any) {\n" +
+            "}\n"),
+            Example("var obs: [Any?] = []\n" +
+            "obs.append(nc.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: nil, using: { }))\n"),
+            Example("""
+            var obs: [String: Any?] = []
+            obs["foo"] = nc.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: nil, using: { })
+            """),
+            Example("var obs: [Any?] = []\n" +
+            "obs.append(nc.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: nil, using: { }))\n"),
+            Example("func foo(_ notif: Any) {\n" +
             "   obs.append(notif)\n" +
             "}\n" +
-            "foo(nc.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: nil, using: { }))\n"
+            "foo(nc.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: nil, using: { }))\n"),
+            Example("""
+            var obs: [NSObjectProtocol] = [
+               nc.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: nil, using: { }),
+               nc.addObserver(forName: .CKAccountChanged, object: nil, queue: nil, using: { })
+            ]
+            """)
         ],
         triggeringExamples: [
-            "↓nc.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: nil) { }\n",
-            "↓nc.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: nil, using: { })\n",
-            "@discardableResult func foo() -> Any {\n" +
-            "   return ↓nc.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: nil, using: { })\n" +
-            "}\n"
+            Example("↓nc.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: nil) { }\n"),
+            Example("↓nc.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: nil, using: { })\n"),
+            Example("""
+            @discardableResult func foo() -> Any {
+               return ↓nc.addObserver(forName: .NSSystemTimeZoneDidChange, object: nil, queue: nil, using: { })
+            }
+            """)
         ]
     )
 
     public func validate(file: SwiftLintFile, kind: SwiftExpressionKind,
                          dictionary: SourceKittenDictionary) -> [StyleViolation] {
         return violationOffsets(in: file, dictionary: dictionary, kind: kind).map { location in
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severity,
                            location: Location(file: file, byteOffset: location))
         }
     }
 
     private func violationOffsets(in file: SwiftLintFile, dictionary: SourceKittenDictionary,
-                                  kind: SwiftExpressionKind) -> [Int] {
+                                  kind: SwiftExpressionKind) -> [ByteCount] {
         guard kind == .call,
             let name = dictionary.name,
             name.hasSuffix(".addObserver"),
@@ -57,7 +70,7 @@ public struct DiscardedNotificationCenterObserverRule: ASTRule, ConfigurationPro
             argumentsNames == ["forName", "object", "queue"] ||
                 argumentsNames == ["forName", "object", "queue", "using"],
             let offset = dictionary.offset,
-            let range = file.stringView.byteRangeToNSRange(start: 0, length: offset) else {
+            let range = file.stringView.byteRangeToNSRange(ByteRange(location: 0, length: offset)) else {
                 return []
         }
 
@@ -78,12 +91,17 @@ public struct DiscardedNotificationCenterObserverRule: ASTRule, ConfigurationPro
             return []
         }
 
+        let kinds = file.structureDictionary.kinds(forByteOffset: offset)
+        if kinds.count >= 2 && SwiftExpressionKind(rawValue: kinds[kinds.count - 2].0) == .array {
+            return []
+        }
+
         return [offset]
     }
 }
 
 private extension SourceKittenDictionary {
-    func functions(forByteOffset byteOffset: Int) -> [SourceKittenDictionary] {
+    func functions(forByteOffset byteOffset: ByteCount) -> [SourceKittenDictionary] {
         return structures(forByteOffset: byteOffset)
             .filter { $0.declarationKind.map(SwiftDeclarationKind.functionKinds.contains) == true }
     }

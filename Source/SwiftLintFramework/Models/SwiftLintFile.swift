@@ -3,25 +3,15 @@ import SourceKittenFramework
 
 /// A unit of Swift source code, either on disk or in memory.
 public final class SwiftLintFile {
-    private static var id = 0
-    private static var lock = NSLock()
-
-    private static func nextID () -> Int {
-        lock.lock()
-        defer { lock.unlock() }
-        id += 1
-        return id
-    }
-
     let file: File
-    let id: Int
+    let id: UUID
 
     /// Creates a `SwiftLintFile` with a SourceKitten `File`.
     ///
     /// - parameter file: A file from SourceKitten.
     public init(file: File) {
         self.file = file
-        self.id = SwiftLintFile.nextID()
+        self.id = UUID()
     }
 
     /// Creates a `SwiftLintFile` by specifying its path on disk.
@@ -66,6 +56,24 @@ public final class SwiftLintFile {
     /// The parsed lines for this file's contents.
     public var lines: [Line] {
         return file.lines
+    }
+
+    /// Returns whether or not the file contains any attributes that require the Foundation module.
+    func containsAttributesRequiringFoundation() -> Bool {
+        guard contents.contains("@objc") else {
+            return false
+        }
+
+        func containsAttributesRequiringFoundation(dict: SourceKittenDictionary) -> Bool {
+            let attributesRequiringFoundation = SwiftDeclarationAttributeKind.attributesRequiringFoundation
+            if !attributesRequiringFoundation.isDisjoint(with: dict.enclosedSwiftAttributes) {
+                return true
+            } else {
+                return dict.substructure.contains(where: containsAttributesRequiringFoundation)
+            }
+        }
+
+        return containsAttributesRequiringFoundation(dict: structureDictionary)
     }
 }
 

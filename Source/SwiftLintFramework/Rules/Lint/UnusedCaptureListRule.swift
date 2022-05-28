@@ -11,68 +11,121 @@ public struct UnusedCaptureListRule: ASTRule, ConfigurationProviderRule, Automat
         name: "Unused Capture List",
         description: "Unused reference in a capture list should be removed.",
         kind: .lint,
-        minSwiftVersion: .fourDotTwo,
         nonTriggeringExamples: [
-            """
+            Example("""
+            [1, 2].map {
+                [ weak
+                  delegate,
+                  unowned
+                  self
+                ] num in
+                delegate.handle(num)
+            }
+            """),
+            Example("""
             [1, 2].map { [weak self] num in
                 self?.handle(num)
             }
-            """,
-            """
+            """),
+            Example("""
             let failure: Failure = { [weak self, unowned delegate = self.delegate!] foo in
                 delegate.handle(foo, self)
             }
-            """,
-            """
+            """),
+            Example("""
             numbers.forEach({
                 [weak handler] in
                 handler?.handle($0)
             })
-            """,
-            """
+            """),
+            Example("""
             withEnvironment(apiService: MockService(fetchProjectResponse: project)) {
                 [Device.phone4_7inch, Device.phone5_8inch, Device.pad].forEach { device in
                     device.handle()
                 }
             }
-            """,
-            "{ [foo] _ in foo.bar() }()",
-            "sizes.max().flatMap { [(offset: offset, size: $0)] } ?? []"
+            """),
+            Example("{ [foo] _ in foo.bar() }()"),
+            Example("sizes.max().flatMap { [(offset: offset, size: $0)] } ?? []"),
+            Example("""
+            [1, 2].map { [self] num in
+                handle(num)
+            }
+            """),
+            Example("""
+            [1, 2].map { [unowned self] num in
+                handle(num)
+            }
+            """),
+            Example("""
+            [1, 2].map { [self, unowned delegate = self.delegate!] num in
+                delegate.handle(num)
+            }
+            """),
+            Example("""
+            [1, 2].map { [unowned self, unowned delegate = self.delegate!] num in
+                delegate.handle(num)
+            }
+            """),
+            Example("""
+            [1, 2].map {
+                [ weak
+                  delegate,
+                  self
+                ] num in
+                delegate.handle(num)
+            }
+            """),
+            Example("""
+            rx.onViewDidAppear.subscribe(onNext: { [unowned self] in
+                  doSomething()
+            }).disposed(by: disposeBag)
+            """)
         ],
         triggeringExamples: [
-            """
+            Example("""
             [1, 2].map { [↓weak self] num in
                 print(num)
             }
-            """,
-            """
+            """),
+            Example("""
             let failure: Failure = { [weak self, ↓unowned delegate = self.delegate!] foo in
                 self?.handle(foo)
             }
-            """,
-            """
+            """),
+            Example("""
             let failure: Failure = { [↓weak self, ↓unowned delegate = self.delegate!] foo in
                 print(foo)
             }
-            """,
-            """
+            """),
+            Example("""
             numbers.forEach({
                 [weak handler] in
                 print($0)
             })
-            """,
-            """
+            """),
+            Example("""
+            numbers.forEach({
+                [self, weak handler] in
+                print($0)
+            })
+            """),
+            Example("""
             withEnvironment(apiService: MockService(fetchProjectResponse: project)) { [↓foo] in
                 [Device.phone4_7inch, Device.phone5_8inch, Device.pad].forEach { device in
                     device.handle()
                 }
             }
-            """,
-            "{ [↓foo] in _ }()"
+            """),
+            Example("{ [↓foo] in _ }()")
         ]
     )
 
     private let captureListRegex = regex("^\\{\\s*\\[([^\\]]+)\\]")
+
+    private let selfKeyword = "self"
+
+    private let unownedKeyword = "unowned"
 
     public func validate(file: SwiftLintFile, kind: SwiftExpressionKind,
                          dictionary: SourceKittenDictionary) -> [StyleViolation] {
@@ -80,12 +133,14 @@ public struct UnusedCaptureListRule: ASTRule, ConfigurationProviderRule, Automat
         guard kind == .closure,
             let offset = dictionary.offset,
             let length = dictionary.length,
-            let closureRange = contents.byteRangeToNSRange(start: offset, length: length)
+            let closureByteRange = dictionary.byteRange,
+            let closureRange = contents.byteRangeToNSRange(closureByteRange)
             else { return [] }
 
-        let firstSubstructureOffset = dictionary.substructure.first?.offset ?? (offset + length)
+        let firstSubstructureOffset = dictionary.substructure.firstFlatteningBrace()?.offset ?? (offset + length)
         let captureListSearchLength = firstSubstructureOffset - offset
-        guard let captureListSearchRange = contents.byteRangeToNSRange(start: offset, length: captureListSearchLength),
+        let captureListSearchByteRange = ByteRange(location: offset, length: captureListSearchLength)
+        guard let captureListSearchRange = contents.byteRangeToNSRange(captureListSearchByteRange),
             let match = captureListRegex.firstMatch(in: file.contents, options: [], range: captureListSearchRange)
             else { return [] }
 
@@ -114,6 +169,11 @@ public struct UnusedCaptureListRule: ASTRule, ConfigurationProviderRule, Automat
         var locationOffset = 0
         return captureList.components(separatedBy: ",")
             .reduce(into: [(String, Int)]()) { referencesAndLocations, item in
+                let words = item
+                  .trimmingCharacters(in: .whitespacesAndNewlines)
+                  .components(separatedBy: .whitespacesAndNewlines)
+                guard words.first != selfKeyword
+                        && (words.first != unownedKeyword || words.last != selfKeyword) else { return }
                 let item = item.bridge()
                 let range = item.rangeOfCharacter(from: CharacterSet.whitespacesAndNewlines.inverted)
                 guard range.location != NSNotFound else { return }
@@ -131,7 +191,7 @@ public struct UnusedCaptureListRule: ASTRule, ConfigurationProviderRule, Automat
             }
     }
 
-    private func identifierStrings(in file: SwiftLintFile, byteRange: NSRange) -> Set<String> {
+    private func identifierStrings(in file: SwiftLintFile, byteRange: ByteRange) -> Set<String> {
         let identifiers = file.syntaxMap
             .tokens(inByteRange: byteRange)
             .compactMap { token -> String? in
@@ -148,11 +208,26 @@ public struct UnusedCaptureListRule: ASTRule, ConfigurationProviderRule, Automat
             let offset = captureListRange.location + location
             let reason = "Unused reference \(reference) in a capture list should be removed."
             return StyleViolation(
-                ruleDescription: type(of: self).description,
+                ruleDescription: Self.description,
                 severity: configuration.severity,
                 location: Location(file: file, characterOffset: offset),
                 reason: reason
             )
         }
+    }
+}
+
+private extension Array where Element == SourceKittenDictionary {
+    func firstFlatteningBrace() -> Element? {
+        guard SwiftVersion.current >= .fiveDotFour else {
+            return first
+        }
+
+        return flatMap { dict -> [SourceKittenDictionary] in
+            guard dict.kind == "source.lang.swift.stmt.brace" else {
+                return [dict]
+            }
+            return dict.substructure
+        }.first
     }
 }

@@ -1,7 +1,7 @@
 import Foundation
 import SourceKittenFramework
 
-public struct WeakDelegateRule: ASTRule, SubstitutionCorrectableASTRule, ConfigurationProviderRule,
+public struct WeakDelegateRule: OptInRule, ASTRule, SubstitutionCorrectableASTRule, ConfigurationProviderRule,
     AutomaticTestableRule {
     public var configuration = SeverityConfiguration(.warning)
 
@@ -13,35 +13,37 @@ public struct WeakDelegateRule: ASTRule, SubstitutionCorrectableASTRule, Configu
         description: "Delegates should be weak to avoid reference cycles.",
         kind: .lint,
         nonTriggeringExamples: [
-            "class Foo {\n  weak var delegate: SomeProtocol?\n}\n",
-            "class Foo {\n  weak var someDelegate: SomeDelegateProtocol?\n}\n",
-            "class Foo {\n  weak var delegateScroll: ScrollDelegate?\n}\n",
+            Example("class Foo {\n  weak var delegate: SomeProtocol?\n}\n"),
+            Example("class Foo {\n  weak var someDelegate: SomeDelegateProtocol?\n}\n"),
+            Example("class Foo {\n  weak var delegateScroll: ScrollDelegate?\n}\n"),
             // We only consider properties to be a delegate if it has "delegate" in its name
-            "class Foo {\n  var scrollHandler: ScrollDelegate?\n}\n",
+            Example("class Foo {\n  var scrollHandler: ScrollDelegate?\n}\n"),
             // Only trigger on instance variables, not local variables
-            "func foo() {\n  var delegate: SomeDelegate\n}\n",
+            Example("func foo() {\n  var delegate: SomeDelegate\n}\n"),
             // Only trigger when variable has the suffix "-delegate" to avoid false positives
-            "class Foo {\n  var delegateNotified: Bool?\n}\n",
+            Example("class Foo {\n  var delegateNotified: Bool?\n}\n"),
             // There's no way to declare a property weak in a protocol
-            "protocol P {\n var delegate: AnyObject? { get set }\n}\n",
-            "class Foo {\n protocol P {\n var delegate: AnyObject? { get set }\n}\n}\n",
-            "class Foo {\n var computedDelegate: ComputedDelegate {\n return bar() \n} \n}"
+            Example("protocol P {\n var delegate: AnyObject? { get set }\n}\n"),
+            Example("class Foo {\n protocol P {\n var delegate: AnyObject? { get set }\n}\n}\n"),
+            Example("class Foo {\n var computedDelegate: ComputedDelegate {\n return bar() \n} \n}"),
+            Example("struct Foo {\n @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate \n}")
         ],
         triggeringExamples: [
-            "class Foo {\n  ↓var delegate: SomeProtocol?\n}\n",
-            "class Foo {\n  ↓var scrollDelegate: ScrollDelegate?\n}\n"
+            Example("class Foo {\n  ↓var delegate: SomeProtocol?\n}\n"),
+            Example("class Foo {\n  ↓var scrollDelegate: ScrollDelegate?\n}\n")
         ],
         corrections: [
-            "class Foo {\n  ↓var delegate: SomeProtocol?\n}\n": "class Foo {\n  weak var delegate: SomeProtocol?\n}\n",
-            "class Foo {\n  ↓var scrollDelegate: ScrollDelegate?\n}\n":
-                "class Foo {\n  weak var scrollDelegate: ScrollDelegate?\n}\n"
+            Example("class Foo {\n  ↓var delegate: SomeProtocol?\n}\n"):
+                Example("class Foo {\n  weak var delegate: SomeProtocol?\n}\n"),
+            Example("class Foo {\n  ↓var scrollDelegate: ScrollDelegate?\n}\n"):
+                Example("class Foo {\n  weak var scrollDelegate: ScrollDelegate?\n}\n")
         ]
     )
 
     public func validate(file: SwiftLintFile, kind: SwiftDeclarationKind,
                          dictionary: SourceKittenDictionary) -> [StyleViolation] {
         return violationRanges(in: file, kind: kind, dictionary: dictionary).map {
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severity,
                            location: Location(file: file, characterOffset: $0.location))
         }
@@ -65,7 +67,7 @@ public struct WeakDelegateRule: ASTRule, SubstitutionCorrectableASTRule, Configu
 
         // if the declaration is inside a protocol
         if let offset = dictionary.offset,
-            !protocolDeclarations(forByteOffset: offset, structureDictionary: file.structureDictionary).isEmpty {
+            protocolDeclarations(forByteOffset: offset, structureDictionary: file.structureDictionary).isNotEmpty {
             return []
         }
 
@@ -73,8 +75,22 @@ public struct WeakDelegateRule: ASTRule, SubstitutionCorrectableASTRule, Configu
         let isComputed = (dictionary.bodyLength ?? 0) > 0
         guard !isComputed else { return [] }
 
+        // Check for UIApplicationDelegateAdaptor
+        for attribute in dictionary.swiftAttributes {
+            if
+                let offset = attribute.offset,
+                let length = attribute.length,
+                let value = file.stringView.substringWithByteRange(ByteRange(location: offset, length: length)),
+                value.hasPrefix("@UIApplicationDelegateAdaptor") {
+                return []
+            }
+        }
+
         guard let offset = dictionary.offset,
-            let range = file.stringView.byteRangeToNSRange(start: offset, length: 3) else { return [] }
+            let range = file.stringView.byteRangeToNSRange(ByteRange(location: offset, length: 3))
+        else {
+            return []
+        }
 
         return [range]
     }
@@ -83,13 +99,14 @@ public struct WeakDelegateRule: ASTRule, SubstitutionCorrectableASTRule, Configu
         return (violationRange, "weak var")
     }
 
-    private func protocolDeclarations(forByteOffset byteOffset: Int,
+    private func protocolDeclarations(forByteOffset byteOffset: ByteCount,
                                       structureDictionary: SourceKittenDictionary) -> [SourceKittenDictionary] {
         return structureDictionary.traverseBreadthFirst { dictionary in
             guard dictionary.declarationKind == .protocol,
                 let byteRange = dictionary.byteRange,
-                NSLocationInRange(byteOffset, byteRange) else {
-                    return nil
+                byteRange.contains(byteOffset)
+            else {
+                return nil
             }
             return [dictionary]
         }

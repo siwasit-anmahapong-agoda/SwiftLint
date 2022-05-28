@@ -11,15 +11,15 @@ public struct NoExtensionAccessModifierRule: ASTRule, OptInRule, ConfigurationPr
         description: "Prefer not to use extension access modifiers",
         kind: .idiomatic,
         nonTriggeringExamples: [
-            "extension String {}",
-            "\n\n extension String {}"
+            Example("extension String {}"),
+            Example("\n\n extension String {}")
         ],
         triggeringExamples: [
-            "↓private extension String {}",
-            "↓public \n extension String {}",
-            "↓open extension String {}",
-            "↓internal extension String {}",
-            "↓fileprivate extension String {}"
+            Example("↓private extension String {}"),
+            Example("↓public \n extension String {}"),
+            Example("↓open extension String {}"),
+            Example("↓internal extension String {}"),
+            Example("↓fileprivate extension String {}")
         ]
     )
 
@@ -36,7 +36,7 @@ public struct NoExtensionAccessModifierRule: ASTRule, OptInRule, ConfigurationPr
         }
 
         return [
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severity,
                            location: Location(file: file, byteOffset: aclToken.offset))
         ]

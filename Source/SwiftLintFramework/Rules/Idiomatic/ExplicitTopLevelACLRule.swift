@@ -12,35 +12,32 @@ public struct ExplicitTopLevelACLRule: OptInRule, ConfigurationProviderRule, Aut
         description: "Top-level declarations should specify Access Control Level keywords explicitly.",
         kind: .idiomatic,
         nonTriggeringExamples: [
-            "internal enum A {}\n",
-            "public final class B {}\n",
-            "private struct C {}\n",
-            "internal enum A {\n enum B {}\n}",
-            "internal final class Foo {}",
-            "internal\nclass Foo {}",
-            "internal func a() {}\n",
-            "extension A: Equatable {}",
-            "extension A {}"
+            Example("internal enum A {}\n"),
+            Example("public final class B {}\n"),
+            Example("private struct C {}\n"),
+            Example("internal enum A {\n enum B {}\n}"),
+            Example("internal final class Foo {}"),
+            Example("internal\nclass Foo {}"),
+            Example("internal func a() {}\n"),
+            Example("extension A: Equatable {}"),
+            Example("extension A {}")
         ],
         triggeringExamples: [
-            "enum A {}\n",
-            "final class B {}\n",
-            "struct C {}\n",
-            "func a() {}\n",
-            "internal let a = 0\nfunc b() {}\n"
+            Example("enum A {}\n"),
+            Example("final class B {}\n"),
+            Example("struct C {}\n"),
+            Example("func a() {}\n"),
+            Example("internal let a = 0\nfunc b() {}\n")
         ]
     )
 
     public func validate(file: SwiftLintFile) -> [StyleViolation] {
-        let extensionKinds: Set<SwiftDeclarationKind> = [.extension, .extensionClass, .extensionEnum,
-                                                         .extensionProtocol, .extensionStruct]
-
-        // find all top-level types marked as internal (either explictly or implictly)
+        // find all top-level types marked as internal (either explicitly or implicitly)
         let dictionary = file.structureDictionary
-        let internalTypesOffsets = dictionary.substructure.compactMap { element -> Int? in
+        let internalTypesOffsets = dictionary.substructure.compactMap { element -> ByteCount? in
             // ignore extensions
             guard let kind = element.declarationKind,
-                !extensionKinds.contains(kind) else {
+                !SwiftDeclarationKind.extensionKinds.contains(kind) else {
                     return nil
             }
 
@@ -51,7 +48,7 @@ public struct ExplicitTopLevelACLRule: OptInRule, ConfigurationProviderRule, Aut
             return nil
         }
 
-        guard !internalTypesOffsets.isEmpty else {
+        guard internalTypesOffsets.isNotEmpty else {
             return []
         }
 
@@ -72,20 +69,20 @@ public struct ExplicitTopLevelACLRule: OptInRule, ConfigurationProviderRule, Aut
             // the "internal" token correspond to the type if there're only
             // attributeBuiltin (`final` for example) tokens between them
             let length = typeOffset - previousInternalByteRange.location
-            let range = NSRange(location: previousInternalByteRange.location, length: length)
+            let range = ByteRange(location: previousInternalByteRange.location, length: length)
             let internalDoesntBelongToType = Set(file.syntaxMap.kinds(inByteRange: range)) != [.attributeBuiltin]
 
             return internalDoesntBelongToType
         }
 
         return violationOffsets.map {
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severity,
                            location: Location(file: file, byteOffset: $0))
         }
     }
 
-    private func lastInternalByteRange(before typeOffset: Int, in ranges: [NSRange]) -> NSRange? {
+    private func lastInternalByteRange(before typeOffset: ByteCount, in ranges: [ByteRange]) -> ByteRange? {
         let firstPartition = ranges.prefix(while: { typeOffset > $0.location })
         return firstPartition.last
     }

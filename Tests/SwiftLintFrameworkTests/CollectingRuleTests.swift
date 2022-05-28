@@ -1,8 +1,6 @@
 @testable import SwiftLintFramework
 import XCTest
 
-// swiftlint:disable nesting
-
 class CollectingRuleTests: XCTestCase {
     func testCollectsIntoStorage() {
         struct Spec: MockCollectingRule {
@@ -11,12 +9,12 @@ class CollectingRuleTests: XCTestCase {
             }
             func validate(file: SwiftLintFile, collectedInfo: [SwiftLintFile: Int]) -> [StyleViolation] {
                 XCTAssertEqual(collectedInfo[file], 42)
-                return [StyleViolation(ruleDescription: Spec.description,
+                return [StyleViolation(ruleDescription: Self.description,
                                        location: Location(file: file, byteOffset: 0))]
             }
         }
 
-        XCTAssertFalse(violations("", config: Spec.configuration!).isEmpty)
+        XCTAssertFalse(violations(Example("_ = 0"), config: Spec.configuration!).isEmpty)
     }
 
     func testCollectsAllFiles() {
@@ -29,7 +27,7 @@ class CollectingRuleTests: XCTestCase {
                 XCTAssertTrue(values.contains("foo"))
                 XCTAssertTrue(values.contains("bar"))
                 XCTAssertTrue(values.contains("baz"))
-                return [StyleViolation(ruleDescription: Spec.description,
+                return [StyleViolation(ruleDescription: Self.description,
                                        location: Location(file: file, byteOffset: 0))]
             }
         }
@@ -46,12 +44,12 @@ class CollectingRuleTests: XCTestCase {
             func validate(file: SwiftLintFile, collectedInfo: [SwiftLintFile: [String]], compilerArguments: [String])
                 -> [StyleViolation] {
                     XCTAssertEqual(collectedInfo[file], compilerArguments)
-                    return [StyleViolation(ruleDescription: Spec.description,
+                    return [StyleViolation(ruleDescription: Self.description,
                                            location: Location(file: file, byteOffset: 0))]
             }
         }
 
-        XCTAssertFalse(violations("", config: Spec.configuration!, requiresFileOnDisk: true).isEmpty)
+        XCTAssertFalse(violations(Example("_ = 0"), config: Spec.configuration!, requiresFileOnDisk: true).isEmpty)
     }
 
     func testCorrects() {
@@ -62,7 +60,7 @@ class CollectingRuleTests: XCTestCase {
 
             func validate(file: SwiftLintFile, collectedInfo: [SwiftLintFile: String]) -> [StyleViolation] {
                 if collectedInfo[file] == "baz" {
-                    return [StyleViolation(ruleDescription: Spec.description,
+                    return [StyleViolation(ruleDescription: Self.description,
                                            location: Location(file: file, byteOffset: 2))]
                 } else {
                     return []
@@ -71,7 +69,7 @@ class CollectingRuleTests: XCTestCase {
 
             func correct(file: SwiftLintFile, collectedInfo: [SwiftLintFile: String]) -> [Correction] {
                 if collectedInfo[file] == "baz" {
-                    return [Correction(ruleDescription: Spec.description,
+                    return [Correction(ruleDescription: Self.description,
                                        location: Location(file: file, byteOffset: 2))]
                 } else {
                     return []
@@ -118,7 +116,7 @@ extension MockCollectingRule {
         return RuleDescription(identifier: "test_rule", name: "", description: "", kind: .lint)
     }
     static var configuration: Configuration? {
-        return Configuration(rulesMode: .whitelisted([description.identifier]), ruleList: RuleList(rules: self))
+        return Configuration(rulesMode: .only([description.identifier]), ruleList: RuleList(rules: self))
     }
 
     init(configuration: Any) throws { self.init() }

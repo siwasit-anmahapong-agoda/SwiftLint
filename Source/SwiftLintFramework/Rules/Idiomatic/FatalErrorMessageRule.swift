@@ -11,28 +11,28 @@ public struct FatalErrorMessageRule: ASTRule, ConfigurationProviderRule, OptInRu
         description: "A fatalError call should have a message.",
         kind: .idiomatic,
         nonTriggeringExamples: [
-            """
+            Example("""
             func foo() {
               fatalError("Foo")
             }
-            """,
-            """
+            """),
+            Example("""
             func foo() {
               fatalError(x)
             }
-            """
+            """)
         ],
         triggeringExamples: [
-            """
+            Example("""
             func foo() {
               ↓fatalError("")
             }
-            """,
-            """
+            """),
+            Example("""
             func foo() {
               ↓fatalError()
             }
-            """
+            """)
         ]
     )
 
@@ -46,23 +46,22 @@ public struct FatalErrorMessageRule: ASTRule, ConfigurationProviderRule, OptInRu
         }
 
         return [
-            StyleViolation(ruleDescription: type(of: self).description,
+            StyleViolation(ruleDescription: Self.description,
                            severity: configuration.severity,
                            location: Location(file: file, byteOffset: offset))
         ]
     }
 
     private func hasEmptyBody(dictionary: SourceKittenDictionary, file: SwiftLintFile) -> Bool {
-        guard let bodyOffset = dictionary.bodyOffset,
-            let bodyLength = dictionary.bodyLength else {
-                return false
+        guard let bodyRange = dictionary.bodyByteRange else {
+            return false
         }
 
-        if bodyLength == 0 {
+        if bodyRange.length == 0 {
             return true
         }
 
-        let body = file.stringView.substringWithByteRange(start: bodyOffset, length: bodyLength)
+        let body = file.stringView.substringWithByteRange(bodyRange)
         return body == "\"\""
     }
 }

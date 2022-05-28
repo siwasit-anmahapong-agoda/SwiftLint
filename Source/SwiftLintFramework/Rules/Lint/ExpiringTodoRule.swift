@@ -22,19 +22,21 @@ public struct ExpiringTodoRule: ConfigurationProviderRule, OptInRule {
         description: "TODOs and FIXMEs should be resolved prior to their expiry date.",
         kind: .lint,
         nonTriggeringExamples: [
-            "// notaTODO:\n",
-            "// notaFIXME:\n",
-            "// TODO: [12/31/9999]\n",
-            "// TODO(note)\n",
-            "// FIXME(note)\n",
-            "/* FIXME: */\n",
-            "/* TODO: */\n",
-            "/** FIXME: */\n",
-            "/** TODO: */\n"
+            Example("// notaTODO:\n"),
+            Example("// notaFIXME:\n"),
+            Example("// TODO: [12/31/9999]\n"),
+            Example("// TODO(note)\n"),
+            Example("// FIXME(note)\n"),
+            Example("/* FIXME: */\n"),
+            Example("/* TODO: */\n"),
+            Example("/** FIXME: */\n"),
+            Example("/** TODO: */\n")
         ],
         triggeringExamples: [
-            "// TODO: [10/14/2019]\n",
-            "// FIXME: [10/14/2019]\n"
+            Example("// TODO: [10/14/2019]\n"),
+            Example("// FIXME: [10/14/2019]\n"),
+            Example("// FIXME: [1/14/2019]\n"),
+            Example("// FIXME: [10/4/2019]\n")
         ]
     )
 
@@ -43,8 +45,12 @@ public struct ExpiringTodoRule: ConfigurationProviderRule, OptInRule {
     public init() {}
 
     public func validate(file: SwiftLintFile) -> [StyleViolation] {
-        // swiftlint:disable:next line_length
-        let regex = "\\b(?:TODO|FIXME)(?::|\\b)(?:.*)\\\(configuration.dateDelimiters.opening)(\\d{2,4}\\\(configuration.dateSeparator)\\d{2}\\\(configuration.dateSeparator)\\d{2,4})\\\(configuration.dateDelimiters.closing)"
+        let regex = #"""
+        \b(?:TODO|FIXME)(?::|\b)(?:(?!\b(?:TODO|FIXME)(?::|\b)).)*?\#
+        \\#(configuration.dateDelimiters.opening)\#
+        (\d{1,4}\\#(configuration.dateSeparator)\d{1,2}\\#(configuration.dateSeparator)\d{1,4})\#
+        \\#(configuration.dateDelimiters.closing)
+        """#
 
         return file.matchesAndSyntaxKinds(matching: regex).compactMap { checkingResult, syntaxKinds in
             guard
@@ -58,7 +64,7 @@ public struct ExpiringTodoRule: ConfigurationProviderRule, OptInRule {
             }
 
             return StyleViolation(
-                ruleDescription: type(of: self).description,
+                ruleDescription: Self.description,
                 severity: severity,
                 location: Location(file: file, characterOffset: range.location),
                 reason: violationLevel.reason

@@ -11,7 +11,7 @@ private extension Rule {
     static func superfluousDisableCommandViolations(regions: [Region],
                                                     superfluousDisableCommandRule: SuperfluousDisableCommandRule?,
                                                     allViolations: [StyleViolation]) -> [StyleViolation] {
-        guard !regions.isEmpty, let superfluousDisableCommandRule = superfluousDisableCommandRule else {
+        guard regions.isNotEmpty, let superfluousDisableCommandRule = superfluousDisableCommandRule else {
             return []
         }
 
@@ -54,7 +54,14 @@ private extension Rule {
               configuration: Configuration,
               superfluousDisableCommandRule: SuperfluousDisableCommandRule?,
               compilerArguments: [String]) -> LintResult? {
+        // Empty files shouldn't trigger violations
+        if file.isEmpty { return nil }
+
         if !(self is SourceKitFreeRule) && file.sourcekitdFailed {
+            return nil
+        }
+
+        if SwiftVersion.current < Self.description.minSwiftVersion {
             return nil
         }
 
@@ -125,7 +132,7 @@ public struct Linter {
     /// - parameter configuration:     The SwiftLint configuration to apply to this linter.
     /// - parameter cache:             The persisted cache to use for this linter.
     /// - parameter compilerArguments: The compiler arguments to use for this linter if it is to execute analyzer rules.
-    public init(file: SwiftLintFile, configuration: Configuration = Configuration()!, cache: LinterCache? = nil,
+    public init(file: SwiftLintFile, configuration: Configuration = Configuration.default, cache: LinterCache? = nil,
                 compilerArguments: [String] = []) {
         self.file = file
         self.cache = cache
@@ -143,6 +150,10 @@ public struct Linter {
     }
 
     /// Returns a linter capable of checking for violations after running each rule's collection step.
+    ///
+    /// - parameter storage: The storage object where collected info should be saved.
+    ///
+    /// - returns: A linter capable of checking for violations after running each rule's collection step.
     public func collect(into storage: RuleStorage) -> CollectedLinter {
         DispatchQueue.concurrentPerform(iterations: rules.count) { idx in
             rules[idx].collectInfo(for: file, into: storage, compilerArguments: compilerArguments)
@@ -171,11 +182,19 @@ public struct CollectedLinter {
     }
 
     /// Computes or retrieves style violations.
+    ///
+    /// - parameter storage: The storage object containing all collected info.
+    ///
+    /// - returns: All style violations found by this linter.
     public func styleViolations(using storage: RuleStorage) -> [StyleViolation] {
         return getStyleViolations(using: storage).0
     }
 
     /// Computes or retrieves style violations and the time spent executing each rule.
+    ///
+    /// - parameter storage: The storage object containing all collected info.
+    ///
+    /// - returns: All style violations found by this linter, and the time spent executing each rule.
     public func styleViolationsAndRuleTimes(using storage: RuleStorage)
         -> ([StyleViolation], [(id: String, time: Double)]) {
             return getStyleViolations(using: storage, benchmark: true)
@@ -183,6 +202,11 @@ public struct CollectedLinter {
 
     private func getStyleViolations(using storage: RuleStorage,
                                     benchmark: Bool = false) -> ([StyleViolation], [(id: String, time: Double)]) {
+        guard !file.isEmpty else {
+            // Empty files shouldn't trigger violations
+            return ([], [])
+        }
+
         if let cached = cachedStyleViolations(benchmark: benchmark) {
             return cached
         }
@@ -246,8 +270,20 @@ public struct CollectedLinter {
     }
 
     /// Applies corrections for all rules to this file, returning performed corrections.
+    ///
+    /// - parameter storage: The storage object containing all collected info.
+    ///
+    /// - returns: All corrections that were applied.
     public func correct(using storage: RuleStorage) -> [Correction] {
         if let violations = cachedStyleViolations()?.0, violations.isEmpty {
+            return []
+        }
+
+        if let parserDiagnostics = file.parserDiagnostics {
+            queuedPrintError(
+                "Skipping correcting file because it produced Swift parser diagnostics: \(file.path ?? "<nopath>")"
+            )
+            queuedPrintError(toJSON(["diagnostics": parserDiagnostics]))
             return []
         }
 
@@ -255,7 +291,7 @@ public struct CollectedLinter {
         for rule in rules.compactMap({ $0 as? CorrectableRule }) {
             let newCorrections = rule.correct(file: file, using: storage, compilerArguments: compilerArguments)
             corrections += newCorrections
-            if !newCorrections.isEmpty {
+            if newCorrections.isNotEmpty {
                 file.invalidateCache()
             }
         }
@@ -279,11 +315,14 @@ public struct CollectedLinter {
                                                        configuration: Configuration,
                                                        superfluousDisableCommandRule: SuperfluousDisableCommandRule?
         ) -> [StyleViolation] {
-        guard !regions.isEmpty, let superfluousDisableCommandRule = superfluousDisableCommandRule else {
+        guard regions.isNotEmpty, let superfluousDisableCommandRule = superfluousDisableCommandRule else {
             return []
         }
-        let allCustomIdentifiers = configuration.customRuleIdentifiers.map { RuleIdentifier($0) }
-        let allRuleIdentifiers = masterRuleList.allValidIdentifiers().map { RuleIdentifier($0) }
+
+        let allCustomIdentifiers =
+            (configuration.rules.first { $0 is CustomRules } as? CustomRules)?
+            .configuration.customRuleConfigurations.map { RuleIdentifier($0.identifier) } ?? []
+        let allRuleIdentifiers = primaryRuleList.allValidIdentifiers().map { RuleIdentifier($0) }
         let allValidIdentifiers = Set(allCustomIdentifiers + allRuleIdentifiers + [.all])
 
         return regions.flatMap { region in
@@ -296,5 +335,11 @@ public struct CollectedLinter {
                 )
             }
         }
+    }
+}
+
+private extension SwiftLintFile {
+    var isEmpty: Bool {
+        contents.isEmpty || contents == "\n"
     }
 }
