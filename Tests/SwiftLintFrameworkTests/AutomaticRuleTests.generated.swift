@@ -917,6 +917,24 @@ class XCTFailMessageRuleTests: XCTestCase {
     }
 }
 
+class XCTMissingSuperSetUpTearDownRuleTests: XCTestCase {
+    func testWithDefaultConfiguration() {
+        verifyRule(XCTMissingSuperSetUpTearDownRule.description)
+    }
+}
+
+class XCTNullifyStoredPropertiesRuleTests: XCTestCase {
+    func testWithDefaultConfiguration() {
+        verifyRule(XCTNullifyStoredPropertiesRule.description)
+    }
+}
+
+class XCTResetSharedStateRuleTests: XCTestCase {
+    func testWithDefaultConfiguration() {
+        verifyRule(XCTResetSharedStateRule.description)
+    }
+}
+
 class YodaConditionRuleTests: XCTestCase {
     func testWithDefaultConfiguration() {
         verifyRule(YodaConditionRule.description)
