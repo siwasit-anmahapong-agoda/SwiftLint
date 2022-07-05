@@ -12,7 +12,7 @@ public struct XCTResetSharedStateRule: OptInRule, ConfigurationProviderRule, Aut
         description: "XCTestCase should reset shared state in tearDown().",
         kind: .idiomatic,
         nonTriggeringExamples: [
-            """
+            Example("""
             class TestCase: XCTestCase {
               override func setUp() {
                 super.setUp()
@@ -28,8 +28,8 @@ public struct XCTResetSharedStateRule: OptInRule, ConfigurationProviderRule, Aut
                 MySharedStateComponent.setUp(with: Configuration())
               }
             }
-            """,
-            """
+            """),
+            Example("""
             class TestCase: XCTestCase {
               override func setUp() {
                 super.setUp()
@@ -41,10 +41,10 @@ public struct XCTResetSharedStateRule: OptInRule, ConfigurationProviderRule, Aut
                 MySharedStateComponent.setUp()
               }
             }
-            """
+            """)
         ],
         triggeringExamples: [
-            """
+            Example("""
             class TestCase: XCTestCase {
               override func setUp() {
                 super.setUp()
@@ -55,22 +55,22 @@ public struct XCTResetSharedStateRule: OptInRule, ConfigurationProviderRule, Aut
                 super.tearDown()
               }
             }
-            """,
-            """
+            """),
+            Example("""
             class TestCase: XCTestCase {
               override func setUp() {
                 super.setUp()
                 ↓MySharedStateComponent.setUp()
               }
             }
-            """,
-            """
+            """),
+            Example("""
             class TestCase: XCTestCase {
               func testComponent() {
                 ↓MySharedStateComponent.setUp(with: Configuration())
               }
             }
-            """
+            """)
         ]
     )
 
