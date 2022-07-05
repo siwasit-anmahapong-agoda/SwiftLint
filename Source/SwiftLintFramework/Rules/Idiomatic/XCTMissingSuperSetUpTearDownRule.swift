@@ -11,7 +11,7 @@ public struct XCTMissingSuperSetUpTearDownRule: OptInRule, ConfigurationProvider
         description: "XCTestCase that overrides setUp() or tearDown() methods should call super.",
         kind: .idiomatic,
         nonTriggeringExamples: [
-            """
+            Example("""
             class TestCase: XCTestCase {
               override func setUp() {
                 super.setUp()
@@ -20,11 +20,11 @@ public struct XCTMissingSuperSetUpTearDownRule: OptInRule, ConfigurationProvider
                 super.tearDown()
               }
             }
-            """,
-            """
+            """),
+            Example("""
             class TestCase: XCTestCase {}
-            """,
-            """
+            """),
+            Example("""
             struct MyStruct {
               func setUp() {
                 print("setUp")
@@ -33,10 +33,10 @@ public struct XCTMissingSuperSetUpTearDownRule: OptInRule, ConfigurationProvider
                 print("tearDown")
               }
             }
-            """
+            """)
         ],
         triggeringExamples: [
-            """
+            Example("""
             class TestCase: XCTestCase {
             override func ↓setUp() {
               print("setUp")
@@ -50,7 +50,7 @@ public struct XCTMissingSuperSetUpTearDownRule: OptInRule, ConfigurationProvider
             override class func ↓tearDown() {
               print("tearDown")
             }
-            """
+            """)
         ]
     )
 

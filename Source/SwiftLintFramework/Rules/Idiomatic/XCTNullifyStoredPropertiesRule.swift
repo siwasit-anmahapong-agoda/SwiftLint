@@ -12,7 +12,7 @@ public struct XCTNullifyStoredPropertiesRule: OptInRule, ConfigurationProviderRu
         description: "XCTestCase should nullify all stored properties in tearDown().",
         kind: .idiomatic,
         nonTriggeringExamples: [
-            """
+            Example("""
             class TestCase: XCTestCase {
               var api: API!
               var data: String? = "data"
@@ -29,10 +29,10 @@ public struct XCTNullifyStoredPropertiesRule: OptInRule, ConfigurationProviderRu
                 super.tearDown()
               }
             }
-            """
+            """)
         ],
         triggeringExamples: [
-            """
+            Example("""
             class TestCase: XCTestCase {
               var ↓api: API!
               var data: String? = "data"
@@ -47,8 +47,8 @@ public struct XCTNullifyStoredPropertiesRule: OptInRule, ConfigurationProviderRu
                 super.tearDown()
               }
             }
-            """,
-            """
+            """),
+            Example("""
             class TestCase: XCTestCase {
               var ↓api: API!
               var ↓data: String? = "data"
@@ -58,8 +58,8 @@ public struct XCTNullifyStoredPropertiesRule: OptInRule, ConfigurationProviderRu
                 api = API()
               }
             }
-            """,
-            """
+            """),
+            Example("""
             class TestCase: XCTestCase {
               var ↓api: API!
               var data: String? = "data"
@@ -70,7 +70,7 @@ public struct XCTNullifyStoredPropertiesRule: OptInRule, ConfigurationProviderRu
                 super.tearDown()
               }
             }
-            """
+            """)
         ]
     )
 
@@ -113,9 +113,8 @@ public struct XCTNullifyStoredPropertiesRule: OptInRule, ConfigurationProviderRu
 extension SwiftLintFile {
     func bodyRange(of dictionary: SourceKittenDictionary) -> NSRange? {
         guard
-            let offset = dictionary.bodyOffset,
-            let length = dictionary.bodyLength,
-            let range = stringView.byteRangeToNSRange(start: offset, length: length)
+            let bodyByteRange = dictionary.bodyByteRange,
+            let range = stringView.byteRangeToNSRange(bodyByteRange)
         else {
             return nil
         }
