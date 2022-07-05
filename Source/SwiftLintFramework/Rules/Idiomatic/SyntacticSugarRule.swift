@@ -18,13 +18,10 @@ public struct SyntacticSugarRule: CorrectableRule, ConfigurationProviderRule, Au
     )
 
     public func validate(file: SwiftLintFile) -> [StyleViolation] {
-        guard let tree = file.syntaxTree else { return [] }
-
         let visitor = SyntacticSugarRuleVisitor()
-        visitor.walk(tree)
-
-        let allViolations = flattenViolations(visitor.violations)
-        return allViolations.map { violation in
+        return visitor.walk(file: file) { visitor in
+            flattenViolations(visitor.violations)
+        }.map { violation in
             return StyleViolation(ruleDescription: Self.description,
                                   severity: configuration.severity,
                                   location: Location(file: file, byteOffset: ByteCount(violation.position)),
@@ -37,17 +34,15 @@ public struct SyntacticSugarRule: CorrectableRule, ConfigurationProviderRule, Au
     }
 
     public func correct(file: SwiftLintFile) -> [Correction] {
-        guard let tree = file.syntaxTree else { return [] }
-
         let visitor = SyntacticSugarRuleVisitor()
-        visitor.walk(tree)
+        return visitor.walk(file: file) { visitor in
+            var context = CorrectingContext(rule: self, file: file, contents: file.contents)
+            context.correctViolations(visitor.violations)
 
-        var context = CorrectingContext(rule: self, file: file, contents: file.contents)
-        context.correctViolations(visitor.violations)
+            file.write(context.contents)
 
-        file.write(context.contents)
-
-        return context.corrections
+            return context.corrections
+        }
     }
 }
 
@@ -182,7 +177,7 @@ private final class SyntacticSugarRuleVisitor: SyntaxVisitor {
         // Skip checks for 'self' or \T Dictionary<Key, Value>.self
         if let parent = node.parent?.as(MemberAccessExprSyntax.self),
            let lastToken = Array(parent.tokens).last?.tokenKind,
-           lastToken == .selfKeyword || lastToken == .identifier("Type") || lastToken == .identifier("none") {
+           [.selfKeyword, .identifier("Type"), .identifier("none"), .identifier("Index")].contains(lastToken) {
             return
         }
 

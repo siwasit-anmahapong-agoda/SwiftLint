@@ -2,6 +2,78 @@
 
 #### Breaking
 
+* Deprecate the `--path` options for `lint`/`analyze` commands. Prefer the
+  positional paths that can be added last to both commands.  
+  [SimplyDanny](https://github.com/SimplyDanny)
+
+#### Experimental
+
+* None.
+
+#### Enhancements
+
+* Rewrite `operator_usage_whitespace` rule using SwiftSyntax, fixing
+  false positives and false negatives.  
+  Note that this rule doesn't catch violations around return arrows (`->`)
+  anymore - they are already handled by `return_arrow_whitespace`.  
+  [Marcelo Fabri](https://github.com/marcelofabri)
+  [#3965](https://github.com/realm/SwiftLint/issues/3965)
+  [#3668](https://github.com/realm/SwiftLint/issues/3668)
+  [#2728](https://github.com/realm/SwiftLint/issues/2728)
+
+* Support arrays for the `included` and `excluded` options when defining
+  a custom rule.  
+  [Marcelo Fabri](https://github.com/marcelofabri)
+
+* Add back `void_function_in_ternary` opt-in rule to warn against using
+  a ternary operator to call `Void` functions.  
+  [Marcelo Fabri](https://github.com/marcelofabri)
+
+* Support `UIEdgeInsets` type in `prefer_zero_over_explicit_init` rule.  
+  [KokiHirokawa](https://github.com/KokiHirokawa)
+  [#3986](https://github.com/realm/SwiftLint/issues/3986)
+
+#### Bug Fixes
+
+* Ignore array types in `syntactic_sugar` rule if their associated `Index` is
+  accessed.  
+  [SimplyDanny](https://github.com/SimplyDanny)
+  [#3502](https://github.com/realm/SwiftLint/issues/3502)
+
+* Prevent crash for private types named `_` in `type_name` rules.
+  [sinoru](https://github.com/sinoru)
+  [#3971](https://github.com/realm/SwiftLint/issues/3971)
+  
+* Make `for_where` rule implementation independent of order in structure
+  dictionary. This fixes the rule in Xcode 13.3 where some violation were 
+  no longer reported.  
+  [SimplyDanny](https://github.com/SimplyDanny)
+  [#3975](https://github.com/realm/SwiftLint/issues/3975)
+  
+* Update result builder methods in `unused_declaration` rule fixing some
+  false-positives.  
+  [SimplyDanny](https://github.com/SimplyDanny)
+  
+* Look for call expressions which are not wrapped into an argument when
+  checking for nested (possibly multiline) arguments fixing some
+  false-negatives in (at least) Xcode 13.2.  
+  [SimplyDanny](https://github.com/SimplyDanny)
+  [#3975](https://github.com/realm/SwiftLint/issues/3975)
+
+* Make sure that include paths prefixed with the name of the original path
+  are included in the analysis.  
+  [SimplyDanny](https://github.com/SimplyDanny)
+  [#3705](https://github.com/realm/SwiftLint/issues/3705)
+
+* Do not trigger `unavailable_condition` rule if other `#(un)available`
+  checks are involved.  
+  [SimplyDanny](https://github.com/SimplyDanny)
+  [#3985](https://github.com/realm/SwiftLint/issues/3985)
+
+## 0.47.1: Smarter Appliance
+
+#### Breaking
+
 * None.
 
 #### Experimental
@@ -16,6 +88,41 @@
   [SimplyDanny](https://github.com/SimplyDanny)
   [#3749](https://github.com/realm/SwiftLint/issues/3749)
 
+* Add the `--in-process-sourcekit` command line flag to `lint` and `analyze`
+  commands, which has the same effect as setting the `IN_PROCESS_SOURCEKIT`
+  environment variable.  
+  [Juozas Valancius](https://github.com/juozasvalancius)
+
+* Add a new `artifactbundle` release asset containing `swiftlint` binaries for
+  x86 & arm64 macOS.  
+  [Juozas Valancius](https://github.com/juozasvalancius)
+  [#3840](https://github.com/realm/SwiftLint/issues/3840)
+
+* Add back `return_value_from_void_function` opt-in rule to warn against using
+  `return <expression>` in a function that returns `Void`.  
+  [Marcelo Fabri](https://github.com/marcelofabri)
+
+* Don't skip autocorrect on files that have parser warnings. Only files with
+  errors reported by the Swift parser will be skipped.  
+  [Marcelo Fabri](https://github.com/marcelofabri)
+  [#3343](https://github.com/realm/SwiftLint/issues/3343)
+  
+* Add `accessibility_label_for_image` rule to warn if a SwiftUI
+  Image does not have an accessibility label and is not hidden from
+  accessibility.  
+  [Ryan Cole](https://github.com/rcole34)
+
+* Add `unavailable_condition` rule to prefer using `if #unavailable` instead of
+  `if #available` with an empty body and an `else` condition when using
+  Swift 5.6 or later.  
+  [Marcelo Fabri](https://github.com/marcelofabri)
+  [#3897](https://github.com/realm/SwiftLint/issues/3897)
+
+* Add `comma_inheritance` rule to validate that inheritance clauses use commas
+  instead of `&`.  
+  [Marcelo Fabri](https://github.com/marcelofabri)
+  [#3950](https://github.com/realm/SwiftLint/issues/3950)
+
 #### Bug Fixes
 
 * Fix false positives in `unused_closure_parameter` when using parameters with
@@ -29,9 +136,22 @@
   [#3866](https://github.com/realm/SwiftLint/issues/3866)
 
 * Fix analyzer rules with Xcode 13.3 / Swift 5.6. Note that we've measured
-  performance regressions compared to Swift 5.5 on the order of about 2x.   
+  performance regressions compared to Swift 5.5 on the order of about 2x.  
   [JP Simard](https://github.com/jpsim)
   [#3920](https://github.com/realm/SwiftLint/issues/3920)
+
+* Error by default on bad expiring todo date formatting.  
+  [Christopher Hale](https://github.com/chrispomeroyhale)
+  [#3636](https://github.com/realm/SwiftLint/pull/3626)
+  
+* Avoid false-positive in `let_var_whitespace` rule by allowing custom
+  attributes on lines directly before let/var declarations.  
+  [SimplyDanny](https://github.com/SimplyDanny)
+  [#2980](https://github.com/realm/SwiftLint/issues/2980)
+
+* Lint/analyze all files listed in the command even if the `--path` option is
+  used.  
+  [coffmark](https://github.com/coffmark)
 
 ## 0.47.0: Smart Appliance
 

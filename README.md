@@ -41,7 +41,7 @@ in your Script Build Phases.
 This is the recommended way to install a specific version of SwiftLint since it supports
 installing a pinned version rather than simply the latest (which is the case with Homebrew).
 
-Note that this will add the SwiftLint binaries, its dependencies' binaries and the Swift binary
+Note that this will add the SwiftLint binaries, its dependencies' binaries, and the Swift binary
 library distribution to the `Pods/` directory, so checking in this directory to SCM such as
 git is discouraged.
 
@@ -102,7 +102,7 @@ fi
 or you can create a symbolic link in `/usr/local/bin` pointing to the actual binary:
 
 ```bash
-ln -s /opt/homebrew/bin/swiftlint /usr/local/bin
+ln -s /opt/homebrew/bin/swiftlint /usr/local/bin/swiftlint
 ```
 
 You might want to move your SwiftLint phase directly before the 'Compile Sources'
@@ -113,7 +113,7 @@ results.
 
 If you wish to fix violations as well, your script could run
 `swiftlint --fix && swiftlint` instead of just `swiftlint`. This will mean
-that all correctable violations are fixed, while ensuring warnings show up in
+that all correctable violations are fixed while ensuring warnings show up in
 your project for remaining violations.
 
 If you've installed SwiftLint via CocoaPods the script should look like this:
@@ -121,14 +121,6 @@ If you've installed SwiftLint via CocoaPods the script should look like this:
 ```bash
 "${PODS_ROOT}/SwiftLint/swiftlint"
 ```
-
-#### Format on Save Xcode Plugin
-
-To run `swiftlint --fix` on save in Xcode, install the
-[SwiftLintXcode](https://github.com/ypresto/SwiftLintXcode) plugin from Alcatraz.
-
-⚠️This plugin will not work with Xcode 8 or later without disabling SIP.
-This is not recommended.
 
 ### AppCode
 
@@ -374,7 +366,7 @@ run SwiftLint from. The following parameters can be configured:
 Rule inclusion:
 
 * `disabled_rules`: Disable rules from the default enabled set.
-* `opt_in_rules`: Enable rules not from the default set.
+* `opt_in_rules`: Enable rules that are not part of the default set.
 * `only_rules`: Only the rules specified in this list will be enabled.
    Cannot be specified alongside `disabled_rules` or `opt_in_rules`.
 * `analyzer_rules`: This is an entirely separate list of rules that are only
@@ -453,8 +445,10 @@ following syntax:
 ```yaml
 custom_rules:
   pirates_beat_ninjas: # rule identifier
-    included: ".*\\.swift" # regex that defines paths to include during linting. optional.
-    excluded: ".*Test\\.swift" # regex that defines paths to exclude during linting. optional
+    included: 
+      - ".*\\.swift" # regex that defines paths to include during linting. optional.
+    excluded: 
+      - ".*Test\\.swift" # regex that defines paths to exclude during linting. optional
     name: "Pirates Beat Ninjas" # rule name. optional.
     regex: "([nN]inja)" # matching pattern
     capture_group: 0 # number of regex capture group to highlight the rule violation at. optional.
@@ -634,7 +628,7 @@ specifications of nested configurations are getting ignored because there's no s
 If one (or more) SwiftLint file(s) are explicitly specified via the `--config` parameter,
 that configuration will be treated as an override, no matter whether there exist
 other `.swiftlint.yml` files somewhere within the directory. **So if you want to use
-use nested configurations, you can't use the `-- config` parameter.**
+ nested configurations, you can't use the `--config` parameter.**
 
 ## License
 
