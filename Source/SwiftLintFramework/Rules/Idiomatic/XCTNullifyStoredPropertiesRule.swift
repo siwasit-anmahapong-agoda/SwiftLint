@@ -80,7 +80,7 @@ public struct XCTNullifyStoredPropertiesRule: OptInRule, ConfigurationProviderRu
         return testCases.flatMap { (testCase: SourceKittenDictionary) -> [StyleViolation] in
             let allProperties = testCase.allStoredProperties
 
-            guard let tearDownRange = testCase.method("tearDown()").map(file.bodyRange) else {
+            guard let tearDownRange = getTearDownMethod(from: testCase).map(file.bodyRange) else {
                 // tearDown() is missed
                 return violations(in: file, forProperties: allProperties)
             }
@@ -96,6 +96,10 @@ public struct XCTNullifyStoredPropertiesRule: OptInRule, ConfigurationProviderRu
 
             return violations(in: file, forProperties: propertiesViolated)
         }
+    }
+
+    private func getTearDownMethod(from testCase: SourceKittenDictionary) -> SourceKittenDictionary? {
+        return testCase.method("tearDownWithError()") ?? testCase.method("tearDown()")
     }
 
     private func violations(in file: SwiftLintFile,
