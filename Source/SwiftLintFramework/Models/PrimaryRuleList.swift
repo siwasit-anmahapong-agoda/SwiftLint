@@ -226,6 +226,9 @@ let builtInRules: [Rule.Type] = [
     VoidReturnRule.self,
     WeakDelegateRule.self,
     XCTFailMessageRule.self,
+    XCTMissingSuperSetUpTearDownRule.self,
+    XCTNullifyStoredPropertiesRule.self,
+    XCTResetSharedStateRule.self,
     XCTSpecificMatcherRule.self,
     YodaConditionRule.self
 ]
